@@ -11,11 +11,18 @@ void setup() {
     
     pinMode(LED_BUILTIN, OUTPUT);
 
-    bridge.begin();
+    if (!bridge.begin()) {
+        Serial.println("Error initializing bridge");
+        while(1);
+    } else {
+        Serial.println("Bridge initialized successfully");
+    }
 
     if (!bridge.provide("set_led", set_led)) {
         Serial.println("Error providing method: set_led");
-    };
+    } else {
+        Serial.println("Registered method: set_led");
+    }
 
     bridge.provide("add", add);
 
@@ -42,6 +49,7 @@ void loop() {
         Serial.println("Error calling method: multiply");
         Serial.println(bridge.get_error_code());
         Serial.println(bridge.get_error_message());
+        delay(1000);
     };
 
     bridge.notify("signal", 200);

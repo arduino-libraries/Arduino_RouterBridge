@@ -3,6 +3,9 @@
 #ifndef BRIDGE_IMOLA_H
 #define BRIDGE_IMOLA_H
 
+#define RESET_METHOD "$/reset"
+#define BIND_METHOD "$/register"
+
 #include <Arduino_RPClite.h>
 
 
@@ -19,22 +22,34 @@ public:
     }
 
     // Initialize the bridge
-    void begin() {
+    bool begin() {
         client = new RPCClient(*transport);
         server = new RPCServer(*transport);
+        bool res;
+        return call(RESET_METHOD, res);
     }
 
     template<typename F>
     bool provide(const MsgPack::str_t& name, F&& func) {
+        bool res;
+        if (!call(BIND_METHOD, res, name)) {
+            return false;
+        }
         return server->bind(name, func);
     }
 
     void update() {
+        // Protect the following calls with a mutex if necessary
+        // server->read_request();  // <- inbound
+        // server->serve();         // -> outbound
         server->run();
     }
 
     template<typename RType, typename... Args>
     bool call(const MsgPack::str_t method, RType& result, Args&&... args) {
+        // Protect the following calls with a mutex if necessary
+        // client->send_call();         // -> outbound
+        // client->read_response();     // <- inbound
         return client->call(method, result, std::forward<Args>(args)...);
     }
 
@@ -44,7 +59,7 @@ public:
     }
 
     String get_error_message() const {
-        return client->lastError.traceback;
+        return (String) client->lastError.traceback;
     }
 
     uint8_t get_error_code() const {
