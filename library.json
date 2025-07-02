@@ -1,0 +1,22 @@
+{
+  "name": "Arduino_BridgeImola",
+  "keywords": "rpclite,msgpack",
+  "description": "A RPC bridge for Imola boards",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bcmi-labs/Arduino_BridgeImola"
+  },
+  "authors": {
+    "name": "BCMI-labs",
+    "url": "https://github.com/bcmi-labs/Arduino_BridgeImola",
+    "maintainer": true
+  },
+  "version": "0.0.1",
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": "*",
+  "dependencies":
+  {
+    "bcmi-labs/Arduino_RPClite": ">=0.0.1"
+  }
+}

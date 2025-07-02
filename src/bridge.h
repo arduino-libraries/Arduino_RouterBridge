@@ -6,7 +6,7 @@
 #include <Arduino_RPClite.h>
 
 
-class Bridge: {
+class Bridge {
 
     RPCClient* client = nullptr;
     RPCServer* server = nullptr;
@@ -14,7 +14,7 @@ class Bridge: {
 
 public:
     Bridge(ITransport& t) : transport(&t) {}
-    Bridge(Stream& stream) : {
+    Bridge(Stream& stream) {
         transport = new SerialTransport(stream);
     }
 
@@ -25,7 +25,7 @@ public:
     }
 
     template<typename F>
-    bool provide(const MsgPack::str_t& name, F&& func){
+    bool provide(const MsgPack::str_t& name, F&& func) {
         return server->bind(name, func);
     }
 
@@ -51,7 +51,6 @@ public:
         return (uint8_t) client->lastError.code;
     }
 
-}
-
+};
 
 #endif // BRIDGE_IMOLA_H
