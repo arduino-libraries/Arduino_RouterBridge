@@ -2,7 +2,7 @@
 
 
 void setup() {
-    BRIDGE.begin();
+    Bridge.begin();
 }
 
 void loop() {

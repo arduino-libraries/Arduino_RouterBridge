@@ -11,8 +11,19 @@ void setup() {
     // ERRORE ignorato
     Bridge.provide("greet", greet);     // -> rpc.call("$/register", res, "greet");
 
+    Bridge.provide("get_index", get_index);
     // metodi forniti con provide possono ricevere anche notifiche (semplicemente il risultato non viene restituito)
+
+    Bridge.provide_safe("get_index", get_index);
 }
+
+int index;
+
+int get_index() {
+    return index;
+}
+
+
 
 bool set_led(bool state) {
     digitalWrite(LED_BUILTIN, state);
@@ -28,6 +39,9 @@ String greet() {
 }
 
 void loop() {
+    
+    index++;
+
     float res;
     if (!Bridge.call("multiply", res, 1.0, 2.0)) {
         // ERRORE!
@@ -36,5 +50,5 @@ void loop() {
     Bridge.notify("signal", 200);
 
     // update viene chiamato automaticamente in un thread separato
-    // Bridge.update(); -> server.run();
+    Bridge.update(); // -> server->run();
 }

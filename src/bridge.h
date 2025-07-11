@@ -13,7 +13,7 @@
 #include <Arduino_RPClite.h>
 
 
-class Bridge {
+class BridgeClass {
 
     RPCClient* client = nullptr;
     RPCServer* server = nullptr;
@@ -23,9 +23,9 @@ class Bridge {
     struct k_mutex write_mutex;
 
 public:
-    Bridge(ITransport& t) : transport(&t) {}
+    BridgeClass(ITransport& t) : transport(&t) {}
 
-    Bridge(Stream& stream) {
+    BridgeClass(Stream& stream) {
         transport = new SerialTransport(stream);
     }
 
@@ -63,17 +63,19 @@ public:
 
     void update() {
 
-        k_msleep(1);
         // Lock read mutex
-        k_mutex_lock(&read_mutex, K_FOREVER);
-        if (!server->get_rpc()) {
+        while(1){
+            k_mutex_lock(&read_mutex, K_FOREVER);
+            if (server->get_rpc()) {
+                k_mutex_unlock(&read_mutex);
+                break;
+            }
             k_mutex_unlock(&read_mutex);
-            return;
+            k_msleep(1);
         }
-        k_mutex_unlock(&read_mutex);
 
         server->process_request();
-
+        
         // Lock write mutex
         k_mutex_lock(&write_mutex, K_FOREVER);
         server->send_response();
@@ -122,16 +124,18 @@ private:
     void update_safe() {
 
         // Lock read mutex
-        k_msleep(1);
-        k_mutex_lock(&read_mutex, K_FOREVER);
-        if (!server->get_rpc()) {
+        while(1){
+            k_mutex_lock(&read_mutex, K_FOREVER);
+            if (server->get_rpc()) {
+                k_mutex_unlock(&read_mutex);
+                break;
+            }
             k_mutex_unlock(&read_mutex);
-            return;
+            k_msleep(1);
         }
-        k_mutex_unlock(&read_mutex);
 
         server->process_request("__safe__");
-
+        
         // Lock write mutex
         k_mutex_lock(&write_mutex, K_FOREVER);
         server->send_response();
@@ -139,29 +143,29 @@ private:
 
     }
 
-    friend class BridgeUpdater;
+    friend class BridgeClassUpdater;
 
 };
 
-class BridgeUpdater {
+class BridgeClassUpdater {
 public:
-    static void safeUpdate(Bridge& bridge) {
+    static void safeUpdate(BridgeClass& bridge) {
         bridge.update_safe();  // access private method
     }
 
 private:
-    BridgeUpdater() = delete; // prevents instantiation
+    BridgeClassUpdater() = delete; // prevents instantiation
 };
 
-Bridge BRIDGE(Serial1);
+BridgeClass Bridge(Serial1);
 
 static void safeUpdate(){
-    BridgeUpdater::safeUpdate(BRIDGE);
+    BridgeClassUpdater::safeUpdate(Bridge);
 }
 
 
 void updateEntryPoint(void *, void *, void *){
-    BRIDGE.update();
+    Bridge.update();
 }
 
 static k_tid_t upd_tid;
