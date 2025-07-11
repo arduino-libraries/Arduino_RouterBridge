@@ -6,6 +6,9 @@
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
 
+#define UPDATE_THREAD_STACK_SIZE    500
+#define UPDATE_THREAD_PRIORITY      5
+
 #include <zephyr/kernel.h>
 #include <Arduino_RPClite.h>
 
@@ -158,6 +161,24 @@ Bridge BRIDGE(Serial1);
 
 static void safeUpdate(){
     BridgeUpdater::safeUpdate(BRIDGE);
+}
+
+
+void updateEntryPoint(void *, void *, void *){
+    BRIDGE.update();
+}
+
+static k_tid_t upd_tid;
+static k_thread_stack_t *upd_stack_area;
+static struct k_thread upd_thread_data;
+
+void __setupHook(){
+    upd_stack_area = k_thread_stack_alloc(UPDATE_THREAD_STACK_SIZE, 0);
+    upd_tid = k_thread_create(&upd_thread_data, upd_stack_area,
+                            UPDATE_THREAD_STACK_SIZE,
+                            updateEntryPoint,
+                            NULL, NULL, NULL,
+                            UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
 }
 
 void __loopHook(){
