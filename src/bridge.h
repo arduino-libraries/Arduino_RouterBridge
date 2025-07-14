@@ -63,19 +63,17 @@ public:
 
     void update() {
 
+        k_msleep(1);
         // Lock read mutex
-        while(1){
-            k_mutex_lock(&read_mutex, K_FOREVER);
-            if (server->get_rpc()) {
-                k_mutex_unlock(&read_mutex);
-                break;
-            }
+        k_mutex_lock(&read_mutex, K_FOREVER);
+        if (!server->get_rpc()) {
             k_mutex_unlock(&read_mutex);
-            k_msleep(1);
+            return;
         }
+        k_mutex_unlock(&read_mutex);
 
         server->process_request();
-        
+
         // Lock write mutex
         k_mutex_lock(&write_mutex, K_FOREVER);
         server->send_response();
@@ -124,18 +122,16 @@ private:
     void update_safe() {
 
         // Lock read mutex
-        while(1){
-            k_mutex_lock(&read_mutex, K_FOREVER);
-            if (server->get_rpc()) {
-                k_mutex_unlock(&read_mutex);
-                break;
-            }
+        k_msleep(1);
+        k_mutex_lock(&read_mutex, K_FOREVER);
+        if (!server->get_rpc()) {
             k_mutex_unlock(&read_mutex);
-            k_msleep(1);
+            return;
         }
+        k_mutex_unlock(&read_mutex);
 
         server->process_request("__safe__");
-        
+
         // Lock write mutex
         k_mutex_lock(&write_mutex, K_FOREVER);
         server->send_response();
