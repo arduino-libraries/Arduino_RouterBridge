@@ -8,7 +8,7 @@ This is WIP. Expects changes soon.
 
 Including Arduino_BridgeImola.h gives the user access to a Bridge object that can be used both as a RPC client and/or server to execute and serve RPCs to/from the CPU Host running a GOLANG router.
 
-- The Bridge object is defined on Serial1
+- The Bridge object is pre-defined on Serial1 and automatically initialized inside the main setup()
 - The Bridge.call method is blocking and works the same as in RPClite
 - The Bridge can provide callbacks to incoming RPC requests both in a thread-unsafe and thread-safe fashion (provide & provide_safe)
 - Thread-safe methods execution is granted in the main loop thread where update_safe is called. By design users cannot access .update_safe() freely
@@ -28,18 +28,8 @@ String greet() {
 void setup() {
     Serial.begin(115200);
     while (!Serial);
-
-    Serial1.begin(115200);
-    while (!Serial1);
     
     pinMode(LED_BUILTIN, OUTPUT);
-
-    if (!Bridge.begin()) {
-        Serial.println("Error initializing Bridge");
-        while(1);
-    } else {
-        Serial.println("Bridge initialized successfully");
-    }
 
     if (!Bridge.provide("set_led", set_led)) {
         Serial.println("Error providing method: set_led");

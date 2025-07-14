@@ -9,6 +9,8 @@
 #define UPDATE_THREAD_STACK_SIZE    500
 #define UPDATE_THREAD_PRIORITY      5
 
+#define SERIAL1_BAUD                115200
+
 #include <zephyr/kernel.h>
 #include <Arduino_RPClite.h>
 
@@ -169,6 +171,11 @@ static k_thread_stack_t *upd_stack_area;
 static struct k_thread upd_thread_data;
 
 void __setupHook(){
+
+    Serial1.begin(SERIAL1_BAUD);
+
+    Bridge.begin();
+
     upd_stack_area = k_thread_stack_alloc(UPDATE_THREAD_STACK_SIZE, 0);
     upd_tid = k_thread_create(&upd_thread_data, upd_stack_area,
                             UPDATE_THREAD_STACK_SIZE,

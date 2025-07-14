@@ -17,18 +17,8 @@ String greet() {
 void setup() {
     Serial.begin(115200);
     while (!Serial);
-
-    Serial1.begin(115200);
-    while (!Serial1);
     
     pinMode(LED_BUILTIN, OUTPUT);
-
-    if (!Bridge.begin()) {
-        Serial.println("Error initializing Bridge");
-        while(1);
-    } else {
-        Serial.println("Bridge initialized successfully");
-    }
 
     if (!Bridge.provide("set_led", set_led)) {
         Serial.println("Error providing method: set_led");
