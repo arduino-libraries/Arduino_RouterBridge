@@ -38,7 +38,7 @@ void setup() {
 
     Bridge.provide("add", add);
 
-    Bridge.provide("greet", greet);
+    Bridge.provide_safe("greet", greet);
 
 }
 
@@ -48,10 +48,9 @@ void loop() {
         Serial.println("Error calling method: multiply");
         Serial.println(Bridge.get_error_code());
         Serial.println(Bridge.get_error_message());
-        delay(1000);
     };
 
     Bridge.notify("signal", 200);
 
-    //Bridge.update();
+    //Bridge.update(); // Thread-unsafe update execution is granted in its own thread. It can be called manually with caution
 }

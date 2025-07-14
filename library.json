@@ -11,12 +11,12 @@
     "url": "https://github.com/bcmi-labs/Arduino_BridgeImola",
     "maintainer": true
   },
-  "version": "0.0.1",
+  "version": "0.1.0",
   "license": "MIT",
   "frameworks": "arduino",
   "platforms": "*",
   "dependencies":
   {
-    "bcmi-labs/Arduino_RPClite": ">=0.0.1"
+    "bcmi-labs/Arduino_RPClite": ">=0.1.0"
   }
 }
