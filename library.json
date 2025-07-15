@@ -17,6 +17,6 @@
   "platforms": "*",
   "dependencies":
   {
-    "bcmi-labs/Arduino_RPClite": ">=0.1.0"
+    "name": "bcmi-labs/Arduino_RPClite"
   }
 }
