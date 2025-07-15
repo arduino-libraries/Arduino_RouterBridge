@@ -9,7 +9,7 @@
 #define UPDATE_THREAD_STACK_SIZE    500
 #define UPDATE_THREAD_PRIORITY      5
 
-#define SERIAL1_BAUD                115200
+#define DEFAULT_SERIAL_BAUD                115200
 
 #include <zephyr/kernel.h>
 #include <Arduino_RPClite.h>
@@ -19,20 +19,22 @@ class BridgeClass {
 
     RPCClient* client = nullptr;
     RPCServer* server = nullptr;
+    HardwareSerial* serial_ptr = nullptr;
     ITransport* transport;
 
     struct k_mutex read_mutex;
     struct k_mutex write_mutex;
 
 public:
-    BridgeClass(ITransport& t) : transport(&t) {}
 
-    BridgeClass(Stream& stream) {
-        transport = new SerialTransport(stream);
+    BridgeClass(HardwareSerial& serial) {
+        serial_ptr = &serial;
+        transport = new SerialTransport(serial);
     }
 
     // Initialize the bridge
-    bool begin() {
+    bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD) {
+        serial_ptr->begin(baud);
 
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
@@ -173,8 +175,6 @@ static k_thread_stack_t *upd_stack_area;
 static struct k_thread upd_thread_data;
 
 void __setupHook(){
-
-    Serial1.begin(SERIAL1_BAUD);
 
     Bridge.begin();
 
