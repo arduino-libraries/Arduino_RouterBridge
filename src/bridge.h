@@ -9,11 +9,13 @@
 #define UPDATE_THREAD_STACK_SIZE    500
 #define UPDATE_THREAD_PRIORITY      5
 
-#define DEFAULT_SERIAL_BAUD                115200
+#define DEFAULT_SERIAL_BAUD         115200
 
 #include <zephyr/kernel.h>
 #include <Arduino_RPClite.h>
 
+
+void updateEntryPoint(void *, void *, void *);
 
 class BridgeClass {
 
@@ -24,6 +26,10 @@ class BridgeClass {
 
     struct k_mutex read_mutex;
     struct k_mutex write_mutex;
+    
+    k_tid_t upd_tid;
+    k_thread_stack_t *upd_stack_area;
+    struct k_thread upd_thread_data;
 
 public:
 
@@ -41,6 +47,14 @@ public:
 
         client = new RPCClient(*transport);
         server = new RPCServer(*transport);
+
+        upd_stack_area = k_thread_stack_alloc(UPDATE_THREAD_STACK_SIZE, 0);
+        upd_tid = k_thread_create(&upd_thread_data, upd_stack_area,
+                                UPDATE_THREAD_STACK_SIZE,
+                                updateEntryPoint,
+                                NULL, NULL, NULL,
+                                UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
+
         bool res;
         return call(RESET_METHOD, res);
     }
@@ -157,12 +171,11 @@ private:
     BridgeClassUpdater() = delete; // prevents instantiation
 };
 
+#if defined(UNOQ) || defined(ARDUINO_UNOQ)
 BridgeClass Bridge(Serial1);
-
-static void safeUpdate(){
-    BridgeClassUpdater::safeUpdate(Bridge);
-}
-
+#else
+extern BridgeClass Bridge;
+#endif
 
 void updateEntryPoint(void *, void *, void *){
     while(1){
@@ -170,20 +183,8 @@ void updateEntryPoint(void *, void *, void *){
     }
 }
 
-static k_tid_t upd_tid;
-static k_thread_stack_t *upd_stack_area;
-static struct k_thread upd_thread_data;
-
-void __setupHook(){
-
-    Bridge.begin();
-
-    upd_stack_area = k_thread_stack_alloc(UPDATE_THREAD_STACK_SIZE, 0);
-    upd_tid = k_thread_create(&upd_thread_data, upd_stack_area,
-                            UPDATE_THREAD_STACK_SIZE,
-                            updateEntryPoint,
-                            NULL, NULL, NULL,
-                            UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
+static void safeUpdate(){
+    BridgeClassUpdater::safeUpdate(Bridge);
 }
 
 void __loopHook(){

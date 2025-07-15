@@ -1,5 +1,6 @@
 #include <Arduino_BridgeImola.h>
 
+//BridgeClass Bridge(Serial1);
 
 bool set_led(bool state) {
     digitalWrite(LED_BUILTIN, state);
