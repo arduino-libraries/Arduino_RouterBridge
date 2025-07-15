@@ -171,11 +171,7 @@ private:
     BridgeClassUpdater() = delete; // prevents instantiation
 };
 
-#if defined(UNOQ) || defined(ARDUINO_UNOQ)
 BridgeClass Bridge(Serial1);
-#else
-extern BridgeClass Bridge;
-#endif
 
 void updateEntryPoint(void *, void *, void *){
     while(1){
