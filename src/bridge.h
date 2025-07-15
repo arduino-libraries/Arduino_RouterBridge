@@ -163,7 +163,9 @@ static void safeUpdate(){
 
 
 void updateEntryPoint(void *, void *, void *){
-    Bridge.update();
+    while(1){
+        Bridge.update();
+    }
 }
 
 static k_tid_t upd_tid;
