@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef BRIDGE_IMOLA_H
-#define BRIDGE_IMOLA_H
+#ifndef ROUTER_BRIDGE_H
+#define ROUTER_BRIDGE_H
 
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
@@ -191,4 +191,4 @@ void __loopHook(){
     safeUpdate();
 }
 
-#endif // BRIDGE_IMOLA_H
+#endif // ROUTER_BRIDGE_H

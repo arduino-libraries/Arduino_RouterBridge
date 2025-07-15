@@ -1,12 +1,12 @@
-In this repo it will be implemented an Arduino library wrapper for RPClite to be run on Imola boards.
+In this repo it will be implemented an Arduino library wrapper for RPClite to be run on Arduino UNO Q boards.
 
-The desired API is shown in https://github.com/bcmi-labs/Arduino_BridgeImola/blob/main/desired.ino.
+The desired API is shown in https://github.com/bcmi-labs/Arduino_RouterBridge/blob/main/desired.ino.
 
 This is WIP. Expects changes soon.
 
 ## The Bridge object ##
 
-Including Arduino_BridgeImola.h gives the user access to a Bridge object that can be used both as a RPC client and/or server to execute and serve RPCs to/from the CPU Host running a GOLANG router.
+Including Arduino_RouterBridge.h gives the user access to a Bridge object that can be used both as a RPC client and/or server to execute and serve RPCs to/from the CPU Host running a GOLANG router.
 
 - The Bridge object is pre-defined on Serial1 and automatically initialized inside the main setup()
 - The Bridge.call method is blocking and works the same as in RPClite
