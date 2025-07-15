@@ -1,34 +1,6 @@
-#include <Arduino_BridgeImola.h>
+#include <Arduino_RouterBridge.h>
 
-Bridge bridge(Serial1);
-
-void setup() {
-    Serial.begin(115200);
-    while (!Serial);
-
-    Serial1.begin(115200);
-    while (!Serial1);
-    
-    pinMode(LED_BUILTIN, OUTPUT);
-
-    if (!bridge.begin()) {
-        Serial.println("Error initializing bridge");
-        while(1);
-    } else {
-        Serial.println("Bridge initialized successfully");
-    }
-
-    if (!bridge.provide("set_led", set_led)) {
-        Serial.println("Error providing method: set_led");
-    } else {
-        Serial.println("Registered method: set_led");
-    }
-
-    bridge.provide("add", add);
-
-    bridge.provide("greet", greet);
-
-}
+//BridgeClass Bridge(Serial1);
 
 bool set_led(bool state) {
     digitalWrite(LED_BUILTIN, state);
@@ -43,16 +15,33 @@ String greet() {
     return String("Hello Friend");
 }
 
+void setup() {
+    Serial.begin(115200);
+    while (!Serial);
+    
+    pinMode(LED_BUILTIN, OUTPUT);
+
+    if (!Bridge.provide("set_led", set_led)) {
+        Serial.println("Error providing method: set_led");
+    } else {
+        Serial.println("Registered method: set_led");
+    }
+
+    Bridge.provide("add", add);
+
+    Bridge.provide_safe("greet", greet);
+
+}
+
 void loop() {
     float res;
-    if (!bridge.call("multiply", res, 1.0, 2.0)) {
+    if (!Bridge.call("multiply", res, 1.0, 2.0)) {
         Serial.println("Error calling method: multiply");
-        Serial.println(bridge.get_error_code());
-        Serial.println(bridge.get_error_message());
-        delay(1000);
+        Serial.println(Bridge.get_error_code());
+        Serial.println(Bridge.get_error_message());
     };
 
-    bridge.notify("signal", 200);
+    Bridge.notify("signal", 200);
 
-    bridge.update();
+    //Bridge.update(); // Thread-unsafe update execution is granted in its own thread. It can be called manually with caution
 }

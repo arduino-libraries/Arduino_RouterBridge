@@ -1,22 +1,22 @@
 {
-  "name": "Arduino_BridgeImola",
+  "name": "Arduino_RouterBridge",
   "keywords": "rpclite,msgpack",
-  "description": "A RPC bridge for Imola boards",
+  "description": "A RPC bridge for Arduino UNO Q boards",
   "repository": {
     "type": "git",
-    "url": "https://github.com/bcmi-labs/Arduino_BridgeImola"
+    "url": "https://github.com/bcmi-labs/Arduino_RouterBridge"
   },
   "authors": {
     "name": "BCMI-labs",
-    "url": "https://github.com/bcmi-labs/Arduino_BridgeImola",
+    "url": "https://github.com/bcmi-labs/Arduino_RouterBridge",
     "maintainer": true
   },
-  "version": "0.0.1",
+  "version": "0.1.0",
   "license": "MIT",
   "frameworks": "arduino",
   "platforms": "*",
   "dependencies":
   {
-    "bcmi-labs/Arduino_RPClite": ">=0.0.1"
+    "bcmi-labs/Arduino_RPClite": ">=0.1.0"
   }
 }
