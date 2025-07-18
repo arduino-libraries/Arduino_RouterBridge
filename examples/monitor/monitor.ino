@@ -1,7 +1,5 @@
 #include <Arduino_RouterBridge.h>
 
-//BridgeClass Bridge(Serial1);
-
 bool set_led(bool state) {
     digitalWrite(LED_BUILTIN, state);
     return state;
@@ -19,9 +17,15 @@ void setup() {
     Serial.begin(115200);
     while (!Serial);
     
-    pinMode(LED_BUILTIN, OUTPUT);
+    if (!Bridge.begin()) {
+        Serial.println("cannot setup Bridge");
+    }
 
-    Bridge.begin();
+    if(!Monitor.begin()){
+        Serial.println("cannot setup Monitor");
+    }
+
+    pinMode(LED_BUILTIN, OUTPUT);
 
     if (!Bridge.provide("set_led", set_led)) {
         Serial.println("Error providing method: set_led");
@@ -30,8 +34,6 @@ void setup() {
     }
 
     Bridge.provide("add", add);
-
-    Bridge.provide_safe("greet", greet);
 
 }
 
@@ -45,5 +47,7 @@ void loop() {
 
     Bridge.notify("signal", 200);
 
-    //Bridge.update(); // Thread-unsafe update execution is granted in its own thread. It can be called manually with caution
+    Monitor.write("DEBUG: a debug message");
+
+    Bridge.update();
 }
