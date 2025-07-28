@@ -26,6 +26,7 @@ class BridgeClass {
 
     struct k_mutex read_mutex;
     struct k_mutex write_mutex;
+    struct k_mutex proc_mutex;
     
     k_tid_t upd_tid;
     k_thread_stack_t *upd_stack_area;
@@ -44,6 +45,7 @@ public:
 
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
+        k_mutex_init(&proc_mutex);
 
         client = new RPCClient(*transport);
         server = new RPCServer(*transport);
@@ -81,21 +83,41 @@ public:
 
     void update() {
 
-        k_msleep(1);
         // Lock read mutex
-        k_mutex_lock(&read_mutex, K_FOREVER);
+        if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
+
         if (!server->get_rpc()) {
             k_mutex_unlock(&read_mutex);
+            k_msleep(1);
             return;
         }
+
         k_mutex_unlock(&read_mutex);
 
-        server->process_request();
+        while (true) {
+            if (k_mutex_lock(&proc_mutex, K_MSEC(10)) == 0){
+                server->process_request();
+                k_mutex_unlock(&proc_mutex);
+                k_msleep(1);
+                break;
+            } else {
+                k_msleep(1);
+            }
+        }
 
         // Lock write mutex
-        k_mutex_lock(&write_mutex, K_FOREVER);
-        server->send_response();
-        k_mutex_unlock(&write_mutex);
+        while (true) {
+        
+            if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
+                server->send_response();
+                k_mutex_unlock(&write_mutex);
+                k_msleep(1);
+                break;
+            } else {
+                k_msleep(1);
+            }
+
+        }
 
     }
 
@@ -103,19 +125,31 @@ public:
     bool call(const MsgPack::str_t method, RType& result, Args&&... args) {
 
         // Lock write mutex
-        k_mutex_lock(&write_mutex, K_FOREVER);
-        client->send_rpc(method, std::forward<Args>(args)...);
-        k_mutex_unlock(&write_mutex);
+        while (true) {
+            if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0) {
+                client->send_rpc(method, std::forward<Args>(args)...);
+                k_mutex_unlock(&write_mutex);
+                k_msleep(1);
+                break;
+            } else {
+                k_msleep(1);
+            }
+       }
 
         // Lock read mutex
-        while(1) {
-            k_mutex_lock(&read_mutex, K_FOREVER);
-            if (client->get_response(result)) {
+        while(true) {
+            if (k_mutex_lock(&read_mutex, K_MSEC(10) == 0 )) {
+                if (client->get_response(result)) {
+                    k_mutex_unlock(&read_mutex);
+                    k_msleep(1);
+                    break;
+                }
                 k_mutex_unlock(&read_mutex);
-                break;
+                k_msleep(1);
+            } else {
+                k_msleep(1);
             }
-            k_mutex_unlock(&read_mutex);
-            k_msleep(1);
+
         }
 
         return (client->lastError.code == NO_ERR);
@@ -140,20 +174,40 @@ private:
     void update_safe() {
 
         // Lock read mutex
-        k_msleep(1);
-        k_mutex_lock(&read_mutex, K_FOREVER);
+        if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
+
         if (!server->get_rpc()) {
             k_mutex_unlock(&read_mutex);
+            k_msleep(1);
             return;
         }
+
         k_mutex_unlock(&read_mutex);
 
-        server->process_request("__safe__");
+        while (true) {
+            if (k_mutex_lock(&proc_mutex, K_MSEC(10)) == 0){
+                server->process_request("__safe__");
+                k_mutex_unlock(&proc_mutex);
+                k_msleep(1);
+                break;
+            } else {
+                k_msleep(1);
+            }
+        }
 
         // Lock write mutex
-        k_mutex_lock(&write_mutex, K_FOREVER);
-        server->send_response();
-        k_mutex_unlock(&write_mutex);
+        while (true) {
+        
+            if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
+                server->send_response();
+                k_mutex_unlock(&write_mutex);
+                k_msleep(1);
+                break;
+            } else {
+                k_msleep(1);
+            }
+
+        }
 
     }
 
