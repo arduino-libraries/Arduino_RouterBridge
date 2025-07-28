@@ -230,6 +230,7 @@ BridgeClass Bridge(Serial1);
 void updateEntryPoint(void *, void *, void *){
     while(1){
         Bridge.update();
+        k_msleep(1);
     }
 }
 
@@ -238,6 +239,7 @@ static void safeUpdate(){
 }
 
 void __loopHook(){
+    k_msleep(1);
     safeUpdate();
 }
 
