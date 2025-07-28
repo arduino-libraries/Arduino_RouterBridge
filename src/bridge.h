@@ -138,7 +138,7 @@ public:
 
         // Lock read mutex
         while(true) {
-            if (k_mutex_lock(&read_mutex, K_MSEC(10) == 0 )) {
+            if (k_mutex_lock(&read_mutex, K_MSEC(10)) == 0 ) {
                 if (client->get_response(result)) {
                     k_mutex_unlock(&read_mutex);
                     k_msleep(1);
