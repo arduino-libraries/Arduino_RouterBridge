@@ -26,7 +26,8 @@ class BridgeClass {
 
     struct k_mutex read_mutex;
     struct k_mutex write_mutex;
-    struct k_mutex proc_mutex;
+    struct k_mutex server_mutex;
+    struct k_mutex client_mutex;
     
     k_tid_t upd_tid;
     k_thread_stack_t *upd_stack_area;
@@ -45,7 +46,8 @@ public:
 
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
-        k_mutex_init(&proc_mutex);
+        k_mutex_init(&server_mutex);
+        k_mutex_init(&client_mutex);
 
         client = new RPCClient(*transport);
         server = new RPCServer(*transport);
@@ -83,6 +85,8 @@ public:
 
     void update() {
 
+        if (k_mutex_lock(&server_mutex, K_MSEC(10)) != 0) return;
+
         // Lock read mutex
         if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
 
@@ -94,16 +98,7 @@ public:
 
         k_mutex_unlock(&read_mutex);
 
-        while (true) {
-            if (k_mutex_lock(&proc_mutex, K_MSEC(10)) == 0){
-                server->process_request();
-                k_mutex_unlock(&proc_mutex);
-                k_msleep(1);
-                break;
-            } else {
-                k_msleep(1);
-            }
-        }
+        server->process_request();
 
         // Lock write mutex
         while (true) {
@@ -119,10 +114,14 @@ public:
 
         }
 
+        k_mutex_unlock(&server_mutex);
+
     }
 
     template<typename RType, typename... Args>
     bool call(const MsgPack::str_t method, RType& result, Args&&... args) {
+
+        k_mutex_lock(&client_mutex, K_FOREVER);
 
         // Lock write mutex
         while (true) {
@@ -154,6 +153,8 @@ public:
 
         return (client->lastError.code == NO_ERR);
 
+        k_mutex_unlock(&client_mutex);
+
     }
 
     template<typename... Args>
@@ -173,6 +174,8 @@ private:
 
     void update_safe() {
 
+        if (k_mutex_lock(&server_mutex, K_MSEC(10)) != 0) return;
+
         // Lock read mutex
         if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
 
@@ -184,16 +187,7 @@ private:
 
         k_mutex_unlock(&read_mutex);
 
-        while (true) {
-            if (k_mutex_lock(&proc_mutex, K_MSEC(10)) == 0){
-                server->process_request("__safe__");
-                k_mutex_unlock(&proc_mutex);
-                k_msleep(1);
-                break;
-            } else {
-                k_msleep(1);
-            }
-        }
+        server->process_request("__safe__");
 
         // Lock write mutex
         while (true) {
@@ -209,6 +203,8 @@ private:
 
         }
 
+        k_mutex_unlock(&server_mutex);
+    
     }
 
     friend class BridgeClassUpdater;
