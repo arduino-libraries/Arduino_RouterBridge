@@ -43,15 +43,13 @@ void loop() {
 
     Bridge.notify("signal", 200);
 
-    Monitor.write("DEBUG: a debug message");
+    Monitor.println("DEBUG: a debug message");
 
-    // read needs to be fixed
-    // String incoming_msg;
-    // if (Monitor.read(incoming_msg, 64)) {
-    //     Serial.println(incoming_msg);
-    // } else {
-    //     Serial.println("ERROR on Monitor.read");
-    // }
+    if (Monitor.available()) {
+        String input = Monitor.readStringUntil('\n');  // Read until newline
+        Monitor.print("You entered: ");
+        Monitor.println(input);
+    }
 
     Bridge.update();
 
