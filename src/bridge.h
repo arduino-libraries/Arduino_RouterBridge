@@ -224,10 +224,6 @@ private:
 BridgeClass Bridge(Serial1);
 
 void updateEntryPoint(void *, void *, void *){
-
-    Serial1.begin(115200);
-    while (!Serial1);
-
     while(1){
         Bridge.update();
         k_msleep(1);
