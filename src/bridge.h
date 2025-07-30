@@ -26,8 +26,6 @@ class BridgeClass {
 
     struct k_mutex read_mutex;
     struct k_mutex write_mutex;
-    //struct k_mutex server_mutex;
-    //struct k_mutex client_mutex;
     
     k_tid_t upd_tid;
     k_thread_stack_t *upd_stack_area;
@@ -46,8 +44,6 @@ public:
 
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
-        //k_mutex_init(&server_mutex);
-        //k_mutex_init(&client_mutex);
 
         client = new RPCClient(*transport);
         server = new RPCServer(*transport);
@@ -85,8 +81,6 @@ public:
 
     void update() {
 
-        //if (k_mutex_lock(&server_mutex, K_MSEC(10)) != 0) return;
-
         // Lock read mutex
         if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
 
@@ -115,16 +109,13 @@ public:
 
         }
 
-        //k_mutex_unlock(&server_mutex);
-
     }
 
     template<typename RType, typename... Args>
     bool call(const MsgPack::str_t method, RType& result, Args&&... args) {
 
-        //k_mutex_lock(&client_mutex, K_FOREVER);
         uint32_t msg_id_wait;
-        
+
         // Lock write mutex
         while (true) {
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0) {
@@ -155,8 +146,6 @@ public:
 
         return (client->lastError.code == NO_ERR);
 
-        //k_mutex_unlock(&client_mutex);
-
     }
 
     template<typename... Args>
@@ -175,8 +164,6 @@ public:
 private:
 
     void update_safe() {
-
-        //if (k_mutex_lock(&server_mutex, K_MSEC(10)) != 0) return;
 
         // Lock read mutex
         if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
@@ -205,8 +192,6 @@ private:
             }
 
         }
-
-        //k_mutex_unlock(&server_mutex);
     
     }
 
