@@ -27,11 +27,16 @@ String greet() {
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial);
-    
-    pinMode(LED_BUILTIN, OUTPUT);
 
-    Bridge.begin();
+    if (!Bridge.begin()) {
+        Serial.println("cannot setup Bridge");
+    }
+
+    if(!Monitor.begin()){
+        Serial.println("cannot setup Monitor");
+    }
+
+    pinMode(LED_BUILTIN, OUTPUT);
 
     if (!Bridge.provide("set_led", set_led)) {
         Serial.println("Error providing method: set_led");
@@ -40,18 +45,21 @@ void setup() {
     }
 
     Bridge.provide("add", add);
-
-    Bridge.provide_safe("greet", greet);
+    Bridge.provide("greet", greet);
 
 }
 
 void loop() {
-    float res;
-    if (!Bridge.call("multiply", res, 1.0, 2.0)) {
-        Serial.println("Error calling method: multiply");
-        Serial.println(Bridge.get_error_code());
-        Serial.println(Bridge.get_error_message());
-    };
 
     Bridge.notify("signal", 200);
+
+    Monitor.println("DEBUG: a debug message");
+
+    if (Monitor.available()) {
+        String input = Monitor.readStringUntil('\n');  // Read until newline
+        Monitor.print("You entered: ");
+        Monitor.println(input);
+    }
+
+    delay(500);
 }

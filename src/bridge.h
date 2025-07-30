@@ -1,3 +1,14 @@
+/*
+    This file is part of the Arduino_RouterBridge library.
+
+    Copyright (c) 2025 Arduino SA
+
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at http://mozilla.org/MPL/2.0/.
+    
+*/
+
 #pragma once
 
 #ifndef ROUTER_BRIDGE_H
@@ -81,41 +92,67 @@ public:
 
     void update() {
 
-        k_msleep(1);
         // Lock read mutex
-        k_mutex_lock(&read_mutex, K_FOREVER);
-        if (!server->get_rpc()) {
+        if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
+
+        RPCRequest<> req;
+        if (!server->get_rpc(req)) {
             k_mutex_unlock(&read_mutex);
+            k_msleep(1);
             return;
         }
+
         k_mutex_unlock(&read_mutex);
 
-        server->process_request();
+        server->process_request(req);
 
         // Lock write mutex
-        k_mutex_lock(&write_mutex, K_FOREVER);
-        server->send_response();
-        k_mutex_unlock(&write_mutex);
+        while (true) {
+        
+            if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
+                server->send_response(req);
+                k_mutex_unlock(&write_mutex);
+                k_msleep(1);
+                break;
+            } else {
+                k_msleep(1);
+            }
+
+        }
 
     }
 
     template<typename RType, typename... Args>
     bool call(const MsgPack::str_t method, RType& result, Args&&... args) {
 
+        uint32_t msg_id_wait;
+
         // Lock write mutex
-        k_mutex_lock(&write_mutex, K_FOREVER);
-        client->send_rpc(method, std::forward<Args>(args)...);
-        k_mutex_unlock(&write_mutex);
+        while (true) {
+            if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0) {
+                client->send_rpc(method, msg_id_wait, std::forward<Args>(args)...);
+                k_mutex_unlock(&write_mutex);
+                k_msleep(1);
+                break;
+            } else {
+                k_msleep(1);
+            }
+       }
 
         // Lock read mutex
-        while(1) {
-            k_mutex_lock(&read_mutex, K_FOREVER);
-            if (client->get_response(result)) {
+        while(true) {
+            if (k_mutex_lock(&read_mutex, K_MSEC(10)) == 0 ) {
+                if (client->get_response(msg_id_wait, result)) {
+                    k_mutex_unlock(&read_mutex);
+                    k_msleep(1);
+                    break;
+                }
                 k_mutex_unlock(&read_mutex);
-                break;
+                k_msleep(1);
+            } else {
+                k_msleep(1);
             }
-            k_mutex_unlock(&read_mutex);
-            k_msleep(1);
+
         }
 
         return (client->lastError.code == NO_ERR);
@@ -140,21 +177,33 @@ private:
     void update_safe() {
 
         // Lock read mutex
-        k_msleep(1);
-        k_mutex_lock(&read_mutex, K_FOREVER);
-        if (!server->get_rpc()) {
+        if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
+
+        RPCRequest<> req;
+        if (!server->get_rpc(req, "__safe__")) {
             k_mutex_unlock(&read_mutex);
+            k_msleep(1);
             return;
         }
+
         k_mutex_unlock(&read_mutex);
 
-        server->process_request("__safe__");
+        server->process_request(req);
 
         // Lock write mutex
-        k_mutex_lock(&write_mutex, K_FOREVER);
-        server->send_response();
-        k_mutex_unlock(&write_mutex);
+        while (true) {
+        
+            if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
+                server->send_response(req);
+                k_mutex_unlock(&write_mutex);
+                k_msleep(1);
+                break;
+            } else {
+                k_msleep(1);
+            }
 
+        }
+    
     }
 
     friend class BridgeClassUpdater;
@@ -176,6 +225,7 @@ BridgeClass Bridge(Serial1);
 void updateEntryPoint(void *, void *, void *){
     while(1){
         Bridge.update();
+        k_msleep(1);
     }
 }
 
@@ -184,6 +234,7 @@ static void safeUpdate(){
 }
 
 void __loopHook(){
+    k_msleep(1);
     safeUpdate();
 }
 

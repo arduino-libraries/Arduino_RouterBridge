@@ -11,8 +11,8 @@
     "url": "https://github.com/bcmi-labs/Arduino_RouterBridge",
     "maintainer": true
   },
-  "version": "0.1.0",
-  "license": "MIT",
+  "version": "0.1.2",
+  "license": "MPL2.0",
   "frameworks": "arduino",
   "platforms": "*",
   "dependencies":
