@@ -1,6 +1,16 @@
+/*
+    This file is part of the Arduino_RouterBridge library.
+
+    Copyright (c) 2025 Arduino SA
+
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at http://mozilla.org/MPL/2.0/.
+    
+*/
+
 #include <Arduino_RouterBridge.h>
 
-//BridgeClass Bridge(Serial1);
 
 bool set_led(bool state) {
     digitalWrite(LED_BUILTIN, state);
@@ -42,6 +52,4 @@ void loop() {
     };
 
     Bridge.notify("signal", 200);
-
-    //Bridge.update(); // Thread-unsafe update execution is granted in its own thread. It can be called manually with caution
 }
