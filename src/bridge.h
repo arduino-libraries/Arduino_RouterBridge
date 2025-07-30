@@ -26,8 +26,6 @@ class BridgeClass {
 
     struct k_mutex read_mutex;
     struct k_mutex write_mutex;
-    struct k_mutex server_mutex;
-    struct k_mutex client_mutex;
     
     k_tid_t upd_tid;
     k_thread_stack_t *upd_stack_area;
@@ -46,8 +44,6 @@ public:
 
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
-        k_mutex_init(&server_mutex);
-        k_mutex_init(&client_mutex);
 
         client = new RPCClient(*transport);
         server = new RPCServer(*transport);
@@ -85,12 +81,11 @@ public:
 
     void update() {
 
-        if (k_mutex_lock(&server_mutex, K_MSEC(10)) != 0) return;
-
         // Lock read mutex
         if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
 
-        if (!server->get_rpc()) {
+        RPCRequest<> req;
+        if (!server->get_rpc(req)) {
             k_mutex_unlock(&read_mutex);
             k_msleep(1);
             return;
@@ -98,13 +93,13 @@ public:
 
         k_mutex_unlock(&read_mutex);
 
-        server->process_request();
+        server->process_request(req);
 
         // Lock write mutex
         while (true) {
         
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
-                server->send_response();
+                server->send_response(req);
                 k_mutex_unlock(&write_mutex);
                 k_msleep(1);
                 break;
@@ -114,19 +109,17 @@ public:
 
         }
 
-        k_mutex_unlock(&server_mutex);
-
     }
 
     template<typename RType, typename... Args>
     bool call(const MsgPack::str_t method, RType& result, Args&&... args) {
 
-        k_mutex_lock(&client_mutex, K_FOREVER);
+        uint32_t msg_id_wait;
 
         // Lock write mutex
         while (true) {
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0) {
-                client->send_rpc(method, std::forward<Args>(args)...);
+                client->send_rpc(method, msg_id_wait, std::forward<Args>(args)...);
                 k_mutex_unlock(&write_mutex);
                 k_msleep(1);
                 break;
@@ -138,7 +131,7 @@ public:
         // Lock read mutex
         while(true) {
             if (k_mutex_lock(&read_mutex, K_MSEC(10)) == 0 ) {
-                if (client->get_response(result)) {
+                if (client->get_response(msg_id_wait, result)) {
                     k_mutex_unlock(&read_mutex);
                     k_msleep(1);
                     break;
@@ -152,8 +145,6 @@ public:
         }
 
         return (client->lastError.code == NO_ERR);
-
-        k_mutex_unlock(&client_mutex);
 
     }
 
@@ -174,12 +165,11 @@ private:
 
     void update_safe() {
 
-        if (k_mutex_lock(&server_mutex, K_MSEC(10)) != 0) return;
-
         // Lock read mutex
         if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
 
-        if (!server->get_rpc()) {
+        RPCRequest<> req;
+        if (!server->get_rpc(req, "__safe__")) {
             k_mutex_unlock(&read_mutex);
             k_msleep(1);
             return;
@@ -187,13 +177,13 @@ private:
 
         k_mutex_unlock(&read_mutex);
 
-        server->process_request("__safe__");
+        server->process_request(req);
 
         // Lock write mutex
         while (true) {
         
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
-                server->send_response();
+                server->send_response(req);
                 k_mutex_unlock(&write_mutex);
                 k_msleep(1);
                 break;
@@ -202,8 +192,6 @@ private:
             }
 
         }
-
-        k_mutex_unlock(&server_mutex);
     
     }
 
