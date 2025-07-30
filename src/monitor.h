@@ -19,6 +19,7 @@ class BridgeMonitor: public Stream {
 private:
     BridgeClass& bridge;
     RingBufferN<BufferSize> temp_buffer;
+    struct k_mutex monitor_mutex;
     bool is_connected = false;
 
 public:
@@ -26,6 +27,7 @@ public:
 
     bool begin() {
         return bridge.call(MON_CONNECTED_METHOD, is_connected);
+        k_mutex_init(&monitor_mutex);
     }
 
     bool isConnected() const {
@@ -39,23 +41,30 @@ public:
     }
 
     int read(uint8_t* buffer, size_t size) {
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
         int i = 0;
         while (temp_buffer.available() && i < size) {
             buffer[i++] = temp_buffer.read_char();
         }
+        k_mutex_unlock(&monitor_mutex);
         return i;
     }
 
     int available() override {
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
         int size = temp_buffer.availableForStore();
         if (size > 0) _read(size);
-        return temp_buffer.available();
+        int available = temp_buffer.available();
+        k_mutex_unlock(&monitor_mutex);
+        return available;
     }
 
     int peek() override {
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
         if (temp_buffer.available()) {
             return temp_buffer.peek();
         }
+        k_mutex_unlock(&monitor_mutex);
     }
 
     size_t write(uint8_t c) override {
@@ -105,20 +114,21 @@ public:
 
         if (size == 0) return 0;
 
-        MsgPack::str_t message;
+        MsgPack::arr_t<uint8_t> message;
         bool ret = bridge.call(MON_READ_METHOD, message, size);
 
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
         if (ret) {
-            for (size_t i = 0; i < message.length(); ++i) {
-                 temp_buffer.store_char(message[i]);
+            for (size_t i = 0; i < message.size(); ++i) {
+                temp_buffer.store_char(static_cast<char>(message[i]));
             }
-            return message.length();
+            return message.size();
         }
 
         // if (bridge.lastError.code > NO_ERR) {
         //     is_connected = false;
         // }
-
+        k_mutex_unlock(&monitor_mutex);
         return 0;
 
     }
