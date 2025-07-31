@@ -28,20 +28,23 @@ template<size_t BufferSize=DEFAULT_MONITOR_BUF_SIZE>
 class BridgeMonitor: public Stream {
 
 private:
-    BridgeClass& bridge;
+    BridgeClass* bridge;
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex monitor_mutex;
     bool is_connected = false;
 
 public:
-    BridgeMonitor(BridgeClass& bridge): bridge(bridge) {}
+    BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
 
     bool begin() {
-        return bridge.call(MON_CONNECTED_METHOD, is_connected);
         k_mutex_init(&monitor_mutex);
+        if (!bridge) {
+            bridge->begin();
+        }
+        return bridge->call(MON_CONNECTED_METHOD, is_connected);
     }
 
-    bool isConnected() const {
+    operator bool() const {
         return is_connected;
     }
 
@@ -73,6 +76,7 @@ public:
     int peek() override {
         k_mutex_lock(&monitor_mutex, K_FOREVER);
         if (temp_buffer.available()) {
+            k_mutex_unlock(&monitor_mutex);
             return temp_buffer.peek();
         }
         k_mutex_unlock(&monitor_mutex);
@@ -95,7 +99,7 @@ public:
         }
 
         size_t written;
-        bool ret = bridge.call(MON_WRITE_METHOD, written, send_buffer);
+        bool ret = bridge->call(MON_WRITE_METHOD, written, send_buffer);
         if (ret) {
             return written;
         }
@@ -105,7 +109,7 @@ public:
 
     bool reset() {
         bool res;
-        bool ok = bridge.call(MON_RESET_METHOD, res);
+        bool ok = bridge->call(MON_RESET_METHOD, res);
         if (ok && res) {
             is_connected = false;
         }
@@ -114,7 +118,7 @@ public:
 
     size_t write(String message) {
         size_t size;
-        bool ok = bridge.call(MON_WRITE_METHOD, size, message);
+        bool ok = bridge->call(MON_WRITE_METHOD, size, message);
 
         if (!ok) return 0;
 
@@ -126,7 +130,7 @@ public:
         if (size == 0) return 0;
 
         MsgPack::arr_t<uint8_t> message;
-        bool ret = bridge.call(MON_READ_METHOD, message, size);
+        bool ret = bridge->call(MON_READ_METHOD, message, size);
 
         k_mutex_lock(&monitor_mutex, K_FOREVER);
         if (ret) {

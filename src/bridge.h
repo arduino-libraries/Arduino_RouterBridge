@@ -37,16 +37,22 @@ class BridgeClass {
 
     struct k_mutex read_mutex;
     struct k_mutex write_mutex;
-    
+
     k_tid_t upd_tid;
     k_thread_stack_t *upd_stack_area;
     struct k_thread upd_thread_data;
+
+    bool started = false;
 
 public:
 
     BridgeClass(HardwareSerial& serial) {
         serial_ptr = &serial;
         transport = new SerialTransport(serial);
+    }
+
+    operator bool() const {
+        return started;
     }
 
     // Initialize the bridge
@@ -67,7 +73,11 @@ public:
                                 UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
 
         bool res;
-        return call(RESET_METHOD, res);
+        call(RESET_METHOD, res);
+        if (res) {
+            started = true;
+        }
+        return res;
     }
 
     template<typename F>
@@ -212,8 +222,10 @@ private:
 
 class BridgeClassUpdater {
 public:
-    static void safeUpdate(BridgeClass& bridge) {
-        bridge.update_safe();  // access private method
+    static void safeUpdate(BridgeClass* bridge) {
+        if (*bridge) {
+            bridge->update_safe();
+        }
     }
 
 private:
@@ -223,14 +235,16 @@ private:
 BridgeClass Bridge(Serial1);
 
 void updateEntryPoint(void *, void *, void *){
-    while(1){
-        Bridge.update();
+    while (1) {
+        if (Bridge) {
+            Bridge.update();
+        }
         k_msleep(1);
     }
 }
 
 static void safeUpdate(){
-    BridgeClassUpdater::safeUpdate(Bridge);
+    BridgeClassUpdater::safeUpdate(&Bridge);
 }
 
 void __loopHook(){
