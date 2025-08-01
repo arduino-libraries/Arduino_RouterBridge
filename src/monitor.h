@@ -36,9 +36,11 @@ private:
 public:
     BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
 
+    using Print::write;
+
     bool begin() {
         k_mutex_init(&monitor_mutex);
-        if (!bridge) {
+        if (!(*bridge)) {
             bridge->begin();
         }
         return bridge->call(MON_CONNECTED_METHOD, is_connected);
@@ -80,6 +82,7 @@ public:
             return temp_buffer.peek();
         }
         k_mutex_unlock(&monitor_mutex);
+        return -1;
     }
 
     size_t write(uint8_t c) override {
@@ -92,7 +95,7 @@ public:
 
         for (size_t i = 0; i < size; ++i) {
 #ifdef ARDUINO
-            send_buffer += (char)buffer[i];
+            send_buffer += static_cast<char>(buffer[i]);
 #else
             send_buffer.push_back(static_cast<char>(buffer[i]));
 #endif
@@ -114,15 +117,6 @@ public:
             is_connected = false;
         }
         return (ok && res);
-    }
-
-    size_t write(String message) {
-        size_t size;
-        bool ok = bridge->call(MON_WRITE_METHOD, size, message);
-
-        if (!ok) return 0;
-
-        return size;
     }
 
     int _read(size_t size) {

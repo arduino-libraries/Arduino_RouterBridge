@@ -33,7 +33,7 @@ class BridgeClass {
     RPCClient* client = nullptr;
     RPCServer* server = nullptr;
     HardwareSerial* serial_ptr = nullptr;
-    ITransport* transport;
+    ITransport* transport = nullptr;
 
     struct k_mutex read_mutex;
     struct k_mutex write_mutex;
@@ -48,16 +48,16 @@ public:
 
     BridgeClass(HardwareSerial& serial) {
         serial_ptr = &serial;
-        transport = new SerialTransport(serial);
     }
 
-    operator bool() const {
+    explicit operator bool() const {
         return started;
     }
 
     // Initialize the bridge
     bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD) {
         serial_ptr->begin(baud);
+        transport = new SerialTransport(*serial_ptr);
 
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
@@ -175,11 +175,11 @@ public:
     }
 
     String get_error_message() const {
-        return (String) client->lastError.traceback;
+        return static_cast<String>(client->lastError.traceback);
     }
 
     uint8_t get_error_code() const {
-        return (uint8_t) client->lastError.code;
+        return static_cast<uint8_t>(client->lastError.code);
     }
 
 private:
@@ -235,7 +235,7 @@ private:
 BridgeClass Bridge(Serial1);
 
 void updateEntryPoint(void *, void *, void *){
-    while (1) {
+    while (true) {
         if (Bridge) {
             Bridge.update();
         }
