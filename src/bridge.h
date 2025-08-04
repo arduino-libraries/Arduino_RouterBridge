@@ -46,7 +46,7 @@ class BridgeClass {
 
 public:
 
-    BridgeClass(HardwareSerial& serial) {
+    explicit BridgeClass(HardwareSerial& serial) {
         serial_ptr = &serial;
     }
 
@@ -234,7 +234,7 @@ private:
 
 BridgeClass Bridge(Serial1);
 
-void updateEntryPoint(void *, void *, void *){
+inline void updateEntryPoint(void *, void *, void *){
     while (true) {
         if (Bridge) {
             Bridge.update();
@@ -247,7 +247,7 @@ static void safeUpdate(){
     BridgeClassUpdater::safeUpdate(&Bridge);
 }
 
-void __loopHook(){
+inline void __loopHook(){
     k_msleep(1);
     safeUpdate();
 }

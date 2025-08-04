@@ -34,7 +34,7 @@ private:
     bool is_connected = false;
 
 public:
-    BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
+    explicit BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
 
     using Print::write;
 
@@ -46,7 +46,7 @@ public:
         return bridge->call(MON_CONNECTED_METHOD, is_connected);
     }
 
-    operator bool() const {
+    explicit operator bool() const {
         return is_connected;
     }
 
@@ -119,9 +119,9 @@ public:
         return (ok && res);
     }
 
-    int _read(size_t size) {
+    void _read(size_t size) {
 
-        if (size == 0) return 0;
+        if (size == 0) return;
 
         MsgPack::arr_t<uint8_t> message;
         bool ret = bridge->call(MON_READ_METHOD, message, size);
@@ -131,15 +131,13 @@ public:
             for (size_t i = 0; i < message.size(); ++i) {
                 temp_buffer.store_char(static_cast<char>(message[i]));
             }
-            return message.size();
         }
 
         // if (bridge.lastError.code > NO_ERR) {
         //     is_connected = false;
         // }
-        k_mutex_unlock(&monitor_mutex);
-        return 0;
 
+        k_mutex_unlock(&monitor_mutex);
     }
 
 
