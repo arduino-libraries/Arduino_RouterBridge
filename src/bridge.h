@@ -35,12 +35,12 @@ class BridgeClass {
     HardwareSerial* serial_ptr = nullptr;
     ITransport* transport = nullptr;
 
-    struct k_mutex read_mutex;
-    struct k_mutex write_mutex;
+    struct k_mutex read_mutex{};
+    struct k_mutex write_mutex{};
 
-    k_tid_t upd_tid;
-    k_thread_stack_t *upd_stack_area;
-    struct k_thread upd_thread_data;
+    k_tid_t upd_tid{};
+    k_thread_stack_t *upd_stack_area{};
+    struct k_thread upd_thread_data{};
 
     bool started = false;
 
@@ -50,7 +50,7 @@ public:
         serial_ptr = &serial;
     }
 
-    explicit operator bool() const {
+    operator bool() const {
         return started;
     }
 
@@ -133,7 +133,7 @@ public:
     }
 
     template<typename RType, typename... Args>
-    bool call(const MsgPack::str_t method, RType& result, Args&&... args) {
+    bool call(const MsgPack::str_t& method, RType& result, Args&&... args) {
 
         uint32_t msg_id_wait;
 
@@ -180,6 +180,10 @@ public:
 
     uint8_t get_error_code() const {
         return static_cast<uint8_t>(client->lastError.code);
+    }
+
+    RpcError& get_last_client_error() const {
+        return client->lastError;
     }
 
 private:
