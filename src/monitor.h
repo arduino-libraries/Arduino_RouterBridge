@@ -27,21 +27,27 @@
 template<size_t BufferSize=DEFAULT_MONITOR_BUF_SIZE>
 class BridgeMonitor: public Stream {
 
-private:
-    BridgeClass& bridge;
+    BridgeClass* bridge;
     RingBufferN<BufferSize> temp_buffer;
-    struct k_mutex monitor_mutex;
+    struct k_mutex monitor_mutex{};
     bool is_connected = false;
 
 public:
-    BridgeMonitor(BridgeClass& bridge): bridge(bridge) {}
+    explicit BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
+
+    using Print::write;
 
     bool begin() {
-        return bridge.call(MON_CONNECTED_METHOD, is_connected);
         k_mutex_init(&monitor_mutex);
+
+        bool bridge_started = (*bridge);
+        if (!bridge_started) {
+            bridge_started = bridge->begin();
+        }
+        return bridge_started && bridge->call(MON_CONNECTED_METHOD, is_connected);
     }
 
-    bool isConnected() const {
+    explicit operator bool() const {
         return is_connected;
     }
 
@@ -73,9 +79,11 @@ public:
     int peek() override {
         k_mutex_lock(&monitor_mutex, K_FOREVER);
         if (temp_buffer.available()) {
+            k_mutex_unlock(&monitor_mutex);
             return temp_buffer.peek();
         }
         k_mutex_unlock(&monitor_mutex);
+        return -1;
     }
 
     size_t write(uint8_t c) override {
@@ -84,18 +92,14 @@ public:
 
     size_t write(const uint8_t* buffer, size_t size) override {
 
-        MsgPack::str_t send_buffer;
+        String send_buffer;
 
         for (size_t i = 0; i < size; ++i) {
-#ifdef ARDUINO
-            send_buffer += (char)buffer[i];
-#else
-            send_buffer.push_back(static_cast<char>(buffer[i]));
-#endif
+            send_buffer += static_cast<char>(buffer[i]);
         }
 
         size_t written;
-        bool ret = bridge.call(MON_WRITE_METHOD, written, send_buffer);
+        const bool ret = bridge->call(MON_WRITE_METHOD, written, send_buffer);
         if (ret) {
             return written;
         }
@@ -105,43 +109,34 @@ public:
 
     bool reset() {
         bool res;
-        bool ok = bridge.call(MON_RESET_METHOD, res);
+        bool ok = bridge->call(MON_RESET_METHOD, res);
         if (ok && res) {
             is_connected = false;
         }
         return (ok && res);
     }
 
-    size_t write(String message) {
-        size_t size;
-        bool ok = bridge.call(MON_WRITE_METHOD, size, message);
+private:
+    void _read(size_t size) {
 
-        if (!ok) return 0;
-
-        return size;
-    }
-
-    int _read(size_t size) {
-
-        if (size == 0) return 0;
-
-        MsgPack::arr_t<uint8_t> message;
-        bool ret = bridge.call(MON_READ_METHOD, message, size);
+        if (size == 0) return;
 
         k_mutex_lock(&monitor_mutex, K_FOREVER);
+
+        MsgPack::arr_t<uint8_t> message;
+        bool ret = bridge->call(MON_READ_METHOD, message, size);
+
         if (ret) {
             for (size_t i = 0; i < message.size(); ++i) {
                 temp_buffer.store_char(static_cast<char>(message[i]));
             }
-            return message.size();
         }
 
         // if (bridge.lastError.code > NO_ERR) {
         //     is_connected = false;
         // }
-        k_mutex_unlock(&monitor_mutex);
-        return 0;
 
+        k_mutex_unlock(&monitor_mutex);
     }
 
 

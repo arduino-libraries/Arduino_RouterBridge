@@ -33,25 +33,31 @@ class BridgeClass {
     RPCClient* client = nullptr;
     RPCServer* server = nullptr;
     HardwareSerial* serial_ptr = nullptr;
-    ITransport* transport;
+    ITransport* transport = nullptr;
 
-    struct k_mutex read_mutex;
-    struct k_mutex write_mutex;
-    
-    k_tid_t upd_tid;
-    k_thread_stack_t *upd_stack_area;
-    struct k_thread upd_thread_data;
+    struct k_mutex read_mutex{};
+    struct k_mutex write_mutex{};
+
+    k_tid_t upd_tid{};
+    k_thread_stack_t *upd_stack_area{};
+    struct k_thread upd_thread_data{};
+
+    bool started = false;
 
 public:
 
-    BridgeClass(HardwareSerial& serial) {
+    explicit BridgeClass(HardwareSerial& serial) {
         serial_ptr = &serial;
-        transport = new SerialTransport(serial);
+    }
+
+    operator bool() const {
+        return started;
     }
 
     // Initialize the bridge
     bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD) {
         serial_ptr->begin(baud);
+        transport = new SerialTransport(*serial_ptr);
 
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
@@ -67,7 +73,11 @@ public:
                                 UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
 
         bool res;
-        return call(RESET_METHOD, res);
+        call(RESET_METHOD, res);
+        if (res) {
+            started = true;
+        }
+        return res;
     }
 
     template<typename F>
@@ -123,7 +133,7 @@ public:
     }
 
     template<typename RType, typename... Args>
-    bool call(const MsgPack::str_t method, RType& result, Args&&... args) {
+    bool call(const MsgPack::str_t& method, RType& result, Args&&... args) {
 
         uint32_t msg_id_wait;
 
@@ -165,11 +175,15 @@ public:
     }
 
     String get_error_message() const {
-        return (String) client->lastError.traceback;
+        return static_cast<String>(client->lastError.traceback);
     }
 
     uint8_t get_error_code() const {
-        return (uint8_t) client->lastError.code;
+        return static_cast<uint8_t>(client->lastError.code);
+    }
+
+    RpcError& get_last_client_error() const {
+        return client->lastError;
     }
 
 private:
@@ -212,8 +226,10 @@ private:
 
 class BridgeClassUpdater {
 public:
-    static void safeUpdate(BridgeClass& bridge) {
-        bridge.update_safe();  // access private method
+    static void safeUpdate(BridgeClass* bridge) {
+        if (*bridge) {
+            bridge->update_safe();
+        }
     }
 
 private:
@@ -222,18 +238,20 @@ private:
 
 BridgeClass Bridge(Serial1);
 
-void updateEntryPoint(void *, void *, void *){
-    while(1){
-        Bridge.update();
+inline void updateEntryPoint(void *, void *, void *){
+    while (true) {
+        if (Bridge) {
+            Bridge.update();
+        }
         k_msleep(1);
     }
 }
 
 static void safeUpdate(){
-    BridgeClassUpdater::safeUpdate(Bridge);
+    BridgeClassUpdater::safeUpdate(&Bridge);
 }
 
-void __loopHook(){
+inline void __loopHook(){
     k_msleep(1);
     safeUpdate();
 }
