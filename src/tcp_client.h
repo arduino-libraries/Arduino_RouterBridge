@@ -25,6 +25,7 @@
 
 #define DEFAULT_TCP_CLIENT_BUF_SIZE    512
 
+
 template<size_t BufferSize=DEFAULT_TCP_CLIENT_BUF_SIZE>
 class BridgeTCPClient final: public Client {
 
@@ -149,6 +150,10 @@ public:
         return available() || connected();
     }
 
+    friend class BridgeTCPServer;
+
+    using Print::write;
+
 private:
     void _read(size_t size) {
 
@@ -171,7 +176,7 @@ private:
 
         k_mutex_unlock(&client_mutex);
     }
-    
+
 };
 
 
