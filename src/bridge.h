@@ -251,7 +251,8 @@ static void safeUpdate(){
     BridgeClassUpdater::safeUpdate(&Bridge);
 }
 
-inline void __loopHook(){
+// leave as is
+void __loopHook(void){
     k_msleep(1);
     safeUpdate();
 }
