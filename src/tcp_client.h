@@ -15,6 +15,7 @@
 #define BRIDGE_TCP_CLIENT_H
 
 #define TCP_CONNECT_METHOD          "tcp/connect"
+#define TCP_CONNECT_SSL_METHOD      "tcp/connectSSL"
 #define TCP_CLOSE_METHOD            "tcp/close"
 #define TCP_WRITE_METHOD            "tcp/write"
 #define TCP_READ_METHOD             "tcp/read"
@@ -27,7 +28,7 @@
 
 
 template<size_t BufferSize=DEFAULT_TCP_CLIENT_BUF_SIZE>
-class BridgeTCPClient final: public Client {
+class BridgeTCPClient : public Client {
 
     BridgeClass* bridge;
     uint32_t connection_id{};
@@ -52,13 +53,13 @@ public:
 
     int connect(const char *host, uint16_t port) override {
 
-        String send_buffer = host;
-        send_buffer += ":";
-        send_buffer += String(port);
+        if (_connected) return 0;
+
+        String hostname = host;
 
         k_mutex_lock(&client_mutex, K_FOREVER);
 
-        const bool resp = bridge->call(TCP_CONNECT_METHOD, connection_id, send_buffer);
+        const bool resp = bridge->call(TCP_CONNECT_METHOD, connection_id, hostname, port);
 
         if (!resp) {
             _connected = false;
@@ -72,19 +73,44 @@ public:
         return 0;
     }
 
+    int connectSSL(const char *host, uint16_t port, const char *ca_cert) {
+
+        if (_connected) return 0;
+
+        String hostname = host;
+        String ca_cert_str = ca_cert;
+
+        k_mutex_lock(&client_mutex, K_FOREVER);
+
+        const bool resp = bridge->call(TCP_CONNECT_SSL_METHOD, connection_id, hostname, port, ca_cert_str);
+
+        if (!resp) {
+            _connected = false;
+            k_mutex_unlock(&client_mutex);
+            return -1;
+        }
+        _connected = true;
+
+        k_mutex_unlock(&client_mutex);
+        return 0;
+    }
+
     size_t write(uint8_t c) override {
         return write(&c, 1);
     }
 
     size_t write(const uint8_t *buf, size_t size) override {
-        String send_buffer;
+
+        if (!_connected) return 0;
+
+        MsgPack::arr_t<uint8_t> payload;
 
         for (size_t i = 0; i < size; ++i) {
-            send_buffer += static_cast<char>(buf[i]);
+            payload.push_back(buf[i]);
         }
 
         size_t written;
-        const bool ret = bridge->call(TCP_WRITE_METHOD, written, send_buffer);
+        const bool ret = bridge->call(TCP_WRITE_METHOD, written, connection_id, payload);
         if (ret) {
             return written;
         }
@@ -129,6 +155,10 @@ public:
 
     void flush() override {
         // No-op: flush is implemented for Client subclasses using an output buffer
+    }
+
+    void close() {
+        stop();
     }
 
     void stop() override {

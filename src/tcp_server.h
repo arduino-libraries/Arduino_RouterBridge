@@ -31,52 +31,44 @@ class BridgeTCPServer final: public Server {
     IPAddress _addr{};
     uint16_t _port;
     bool _listening = false;
-    uint32_t listener_id;
+    uint32_t listener_id = 0;
+    uint32_t connection_id = 0;
     struct k_mutex server_mutex{};
 
 public:
     explicit BridgeTCPServer(BridgeClass& bridge, const IPAddress& addr, uint16_t port): bridge(&bridge), _addr(addr), _port(port) {}
 
-    explicit BridgeTCPServer(BridgeClass& bridge, uint16_t port): bridge(&bridge), _addr(IP_ANY_TYPE), _port(port) {}
+    // explicit BridgeTCPServer(BridgeClass& bridge, uint16_t port): bridge(&bridge), _addr(INADDR_NONE), _port(port) {}
 
-    bool begin() {
+    void begin() override {
         k_mutex_init(&server_mutex);
+
         if (!(*bridge)) {
-            if (!bridge->begin()) {
-                return false;
-            }
+            while (!bridge->begin());
         }
 
         k_mutex_lock(&server_mutex, K_FOREVER);
 
-        String conn_str = addr.toString() + String(_port);
-        const bool ret = bridge->call(TCP_LISTEN_METHOD, listener_id, conn_str);
-        // TODO is listener_id one per server obj?
-
-        if (ret) {
-            _listening = true;
-        }
+        String hostname = _addr.toString();
+        _listening = bridge->call(TCP_LISTEN_METHOD, listener_id, hostname, _port);
 
         k_mutex_unlock(&server_mutex);
 
-        return ret;
     }
-
-    void begin(uint16_t port) {
-        _port = port;
-        begin();
-    }
-
 
     BridgeTCPClient<BufferSize> accept() {
+
+        if (connection_id != 0) {
+            return BridgeTCPClient<BufferSize>(*bridge, connection_id);
+        }
+
         k_mutex_lock(&server_mutex, K_FOREVER);
 
-        uint32_t connection_id = 0;
         const bool ret = bridge->call(TCP_ACCEPT_METHOD, connection_id, listener_id);
 
         k_mutex_unlock(&server_mutex);
 
-        if (ret && connection_id != 0) {    // TODO is connection_id 0 acceptable???
+        if (ret && connection_id != 0) {    // connection_id 0 marks an invalid connection
             return BridgeTCPClient<BufferSize>(*bridge, connection_id);
         }
 
@@ -89,10 +81,27 @@ public:
     }
 
     size_t write(const uint8_t *buf, size_t size) override {
-        // Broadcasting to all clients would require tracking them
-        // For now, this is not implemented
-        // TODO a logic to resolve which port-socket is the target of the write
+
+        BridgeTCPClient<BufferSize> client = accept();
+
+        if (client) {
+            return client.write(buf, size);
+        }
+
         return 0;
+    }
+
+    void close() {
+        k_mutex_lock(&server_mutex, K_FOREVER);
+
+        String msg;
+        const bool ret = bridge->call(TCP_CLOSE_METHOD, msg, listener_id);
+
+        if (ret) {
+            _listening = false;
+        }
+
+        k_mutex_unlock(&server_mutex);
     }
 
     bool is_listening() const {
