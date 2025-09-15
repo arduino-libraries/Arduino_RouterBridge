@@ -15,5 +15,7 @@
 #include "Arduino.h"
 #include "bridge.h"
 #include "monitor.h"
+#include "tcp_client.h"
+#include "tcp_server.h"
 
 #endif //ARDUINO_ROUTER_BRIDGE_H

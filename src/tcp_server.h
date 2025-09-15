@@ -16,6 +16,8 @@
 
 #define TCP_LISTEN_METHOD           "tcp/listen"
 #define TCP_ACCEPT_METHOD           "tcp/accept"
+#define TCP_CLOSE_LISTENER_METHOD   "tcp/closeListener"
+
 
 #include <api/Server.h>
 #include <api/Client.h>
@@ -95,7 +97,7 @@ public:
         k_mutex_lock(&server_mutex, K_FOREVER);
 
         String msg;
-        const bool ret = bridge->call(TCP_CLOSE_METHOD, msg, listener_id);
+        const bool ret = bridge->call(TCP_CLOSE_LISTENER_METHOD, msg, listener_id);
 
         if (ret) {
             _listening = false;
