@@ -39,6 +39,8 @@ class BridgeTCPClient : public Client {
 public:
     explicit BridgeTCPClient(BridgeClass& bridge): bridge(&bridge) {}
 
+    BridgeTCPClient(BridgeClass& bridge, uint32_t connection_id, bool connected=true): bridge(&bridge), connection_id(connection_id), _connected {connected} {}
+
     bool begin() {
         k_mutex_init(&client_mutex);
         if (!(*bridge)) {
@@ -93,6 +95,10 @@ public:
 
         k_mutex_unlock(&client_mutex);
         return 0;
+    }
+
+    uint32_t getId() const {
+        return connection_id;
     }
 
     size_t write(uint8_t c) override {

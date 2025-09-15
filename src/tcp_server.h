@@ -35,6 +35,7 @@ class BridgeTCPServer final: public Server {
     bool _listening = false;
     uint32_t listener_id = 0;
     uint32_t connection_id = 0;
+    bool _connected = false;
     struct k_mutex server_mutex{};
 
 public:
@@ -60,7 +61,7 @@ public:
 
     BridgeTCPClient<BufferSize> accept() {
 
-        if (connection_id != 0) {
+        if (_connected) {
             return BridgeTCPClient<BufferSize>(*bridge, connection_id);
         }
 
@@ -70,12 +71,15 @@ public:
 
         k_mutex_unlock(&server_mutex);
 
-        if (ret && connection_id != 0) {    // connection_id 0 marks an invalid connection
+        if (ret) {    // connection_id 0 marks an invalid connection
+            _connected = true;
             return BridgeTCPClient<BufferSize>(*bridge, connection_id);
+        } else {
+            _connected = false;
+            // Return invalid client
+            return BridgeTCPClient<BufferSize>(*bridge, 0, false);
         }
 
-        // Return invalid client
-        return BridgeTCPClient<BufferSize>(*bridge, 0);
     }
 
     size_t write(uint8_t c) override {
@@ -86,7 +90,7 @@ public:
 
         BridgeTCPClient<BufferSize> client = accept();
 
-        if (client) {
+        if (client && _connected) {
             return client.write(buf, size);
         }
 
@@ -103,6 +107,13 @@ public:
             _listening = false;
         }
 
+        k_mutex_unlock(&server_mutex);
+    }
+
+    void disconnect() {
+        k_mutex_lock(&server_mutex, K_FOREVER);
+        _connected = false;
+        connection_id = 0;
         k_mutex_unlock(&server_mutex);
     }
 
