@@ -20,7 +20,6 @@
 
 
 #include <api/Server.h>
-#include <api/Client.h>
 #include "bridge.h"
 #include "tcp_client.h"
 
