@@ -122,10 +122,9 @@ public:
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
                 server->send_response(req);
                 k_mutex_unlock(&write_mutex);
-                k_msleep(1);
                 break;
             } else {
-                k_msleep(1);
+                k_yield();
             }
 
         }
@@ -142,10 +141,9 @@ public:
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0) {
                 client->send_rpc(method, msg_id_wait, std::forward<Args>(args)...);
                 k_mutex_unlock(&write_mutex);
-                k_msleep(1);
                 break;
             } else {
-                k_msleep(1);
+                k_yield();
             }
        }
 
@@ -154,13 +152,12 @@ public:
             if (k_mutex_lock(&read_mutex, K_MSEC(10)) == 0 ) {
                 if (client->get_response(msg_id_wait, result)) {
                     k_mutex_unlock(&read_mutex);
-                    k_msleep(1);
                     break;
                 }
                 k_mutex_unlock(&read_mutex);
                 k_msleep(1);
             } else {
-                k_msleep(1);
+                k_yield();
             }
 
         }
@@ -210,10 +207,9 @@ private:
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
                 server->send_response(req);
                 k_mutex_unlock(&write_mutex);
-                k_msleep(1);
                 break;
             } else {
-                k_msleep(1);
+                k_yield();
             }
 
         }
@@ -243,7 +239,7 @@ inline void updateEntryPoint(void *, void *, void *){
         if (Bridge) {
             Bridge.update();
         }
-        k_msleep(1);
+        k_yield();
     }
 }
 
@@ -253,7 +249,7 @@ static void safeUpdate(){
 
 // leave as is
 void __loopHook(void){
-    k_msleep(1);
+    k_yield();
     safeUpdate();
 }
 
