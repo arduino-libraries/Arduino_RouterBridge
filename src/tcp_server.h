@@ -60,6 +60,10 @@ public:
 
     BridgeTCPClient<BufferSize> accept() {
 
+        if (!_listening) {
+            return BridgeTCPClient<BufferSize>(*bridge, 0, false);
+        }
+
         if (_connected) {
             return BridgeTCPClient<BufferSize>(*bridge, connection_id);
         }
