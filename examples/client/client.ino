@@ -3,26 +3,27 @@
 BridgeTCPClient<> client(Bridge);
 
 void setup() {
-    Serial.begin(115200);
 
     if (!Bridge.begin()) {
-        Serial.println("cannot setup Bridge");
         while (true) {}
     }
 
+    if (!Monitor.begin()) {
+        while (true) {}
+    }
 
 }
 
 void loop() {
 
-    Serial.println("\nStarting connection to server...");
+    Monitor.println("\nStarting connection to server...");
     /* if you get a connection, report back via serial: */
     if (client.connect("arduino.tips", 80) < 0) {
-        Serial.println("unable to connect to server");
+        Monitor.println("unable to connect to server");
         return;
     }
 
-    Serial.println("connected to server");
+    Monitor.println("connected to server");
     /* Make an HTTP request: */
     size_t w = client.println("GET /asciilogo.txt HTTP/1.1");
     w += client.println("Host: arduino.tips");
@@ -38,14 +39,14 @@ void loop() {
         if (len) {
             uint8_t buff[len];
             client.read(buff, len);
-            Serial.write(buff, len);
+            Monitor.write(buff, len);
         }
         delay(0);
     }
 
     /* if the server's disconnected, stop the client: */
-    Serial.println();
-    Serial.println("disconnecting from server.");
+    Monitor.println();
+    Monitor.println("disconnecting from server.");
     client.stop();
     delay(1000);
 }
