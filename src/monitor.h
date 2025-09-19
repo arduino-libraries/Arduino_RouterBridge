@@ -37,12 +37,12 @@ public:
 
     using Print::write;
 
-    bool begin(unsigned long baudrate=DEFAULT_SERIAL_BAUD) {
+    bool begin(unsigned long _legacy_baud=0, uint16_t _legacy_config=0) {
         k_mutex_init(&monitor_mutex);
 
         bool bridge_started = (*bridge);
         if (!bridge_started) {
-            bridge_started = bridge->begin(baudrate);
+            bridge_started = bridge->begin();
         }
         return bridge_started && bridge->call(MON_CONNECTED_METHOD, is_connected);
     }
