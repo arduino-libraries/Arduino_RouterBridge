@@ -6,7 +6,7 @@
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
     file, You can obtain one at http://mozilla.org/MPL/2.0/.
-    
+
 */
 
 #pragma once
@@ -37,12 +37,12 @@ public:
 
     using Print::write;
 
-    bool begin() {
+    bool begin(unsigned long baudrate=DEFAULT_SERIAL_BAUD) {
         k_mutex_init(&monitor_mutex);
 
         bool bridge_started = (*bridge);
         if (!bridge_started) {
-            bridge_started = bridge->begin();
+            bridge_started = bridge->begin(baudrate);
         }
         return bridge_started && bridge->call(MON_CONNECTED_METHOD, is_connected);
     }
