@@ -6,7 +6,7 @@
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
     file, You can obtain one at http://mozilla.org/MPL/2.0/.
-    
+
 */
 
 #pragma once
@@ -37,7 +37,7 @@ public:
 
     using Print::write;
 
-    bool begin() {
+    bool begin(unsigned long _legacy_baud=0, uint16_t _legacy_config=0) {
         k_mutex_init(&monitor_mutex);
 
         bool bridge_started = (*bridge);
