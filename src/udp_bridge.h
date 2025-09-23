@@ -33,7 +33,8 @@ class BridgeUDP final: public UDP {
 
     uint16_t _port; // local port to listen on
 
-    IPAddress _remoteIP; // remote IP address for the incoming packet whilst it's being processed
+    //IPAddress _remoteIP; // remote IP address for the incoming packet whilst it's being processed
+    String _remoteHost;
     uint16_t _remotePort; // remote port for the incoming packet whilst it's being processed
     uint16_t _offset; // offset into the packet being sent
     uint16_t _remaining; // remaining bytes of incoming packet yet to be processed
@@ -51,13 +52,48 @@ public:
         }
 
         k_mutex_lock(&udp_mutex, K_FOREVER);
+
+        String hostname = "0.0.0.0";
+        const bool resp = bridge->call(UDP_CONNECT_METHOD, connection_id, hostname, port);
+
+        if (!resp) {
+            atomic_set(&_connected, 0);
+            k_mutex_unlock(&udp_mutex);
+            return 0;
+        }
+        atomic_set(&_connected, 1);
+
         _port = port;
         k_mutex_unlock(&udp_mutex);
 
         return 1;
     }
 
-    uint8_t beginMulticast(IPAddress, uint16_t) override;
+    uint8_t beginMulticast(IPAddress ip, uint16_t port) override {
+
+        if (connected()) return 1;
+
+        if (!init()) {
+            return 0;
+        }
+
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+
+        String hostname = ip.toString();
+        const bool resp = bridge->call(UDP_CONNECT_MULTI_METHOD, connection_id, hostname, port);
+
+        if (!resp) {
+            atomic_set(&_connected, 0);
+            k_mutex_unlock(&udp_mutex);
+            return 0;
+        }
+        atomic_set(&_connected, 1);
+
+        _port = port;
+        k_mutex_unlock(&udp_mutex);
+
+        return 1;
+    }
 
     void stop() override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
@@ -79,15 +115,8 @@ public:
 
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        String hostname = host;
-        const bool resp = bridge->call(UDP_CONNECT_METHOD, connection_id, hostname, port);
-
-        if (!resp) {
-            atomic_set(&_connected, 0);
-            k_mutex_unlock(&udp_mutex);
-            return 0;
-        }
-        atomic_set(&_connected, 1);
+        _remoteHost = host;
+        _remotePort = port;
 
         k_mutex_unlock(&udp_mutex);
 
