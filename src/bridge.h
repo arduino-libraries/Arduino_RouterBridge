@@ -145,7 +145,7 @@ public:
             } else {
                 k_yield();
             }
-       }
+        }
 
         // Lock read mutex
         while(true) {
@@ -168,7 +168,14 @@ public:
 
     template<typename... Args>
     void notify(const MsgPack::str_t method, Args&&... args)  {
-        client->notify(method, std::forward<Args>(args)...);
+        while (true) {
+            if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0) {
+                client->notify(method, std::forward<Args>(args)...);
+                k_mutex_unlock(&write_mutex);
+                break;
+            }
+            k_yield();
+        }
     }
 
     String get_error_message() const {
