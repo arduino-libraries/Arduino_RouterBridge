@@ -28,6 +28,43 @@
 
 void updateEntryPoint(void *, void *, void *);
 
+class RpcResult {
+public:
+    RpcResult(uint32_t id, RPCClient* c, struct k_mutex* m) : msg_id_wait(id), client(c), read_mutex(m) {}
+
+    template<typename RType> bool result(RType& result, int timeout_ms = -1) {
+        // Lock read mutex
+        if (_timeout < 0)  _timeout = timeout_ms;
+        int start = millis();
+        while(true && (_timeout < 0 || (millis() - start) < _timeout)) {
+            if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
+                if (client->get_response(msg_id_wait, result)) {
+                    k_mutex_unlock(read_mutex);
+                    break;
+                }
+                k_mutex_unlock(read_mutex);
+                k_msleep(1);
+            } else {
+                k_yield();
+            }
+        }
+        return (client->lastError.code == NO_ERR) && (_timeout < 0 || (millis() - start) < _timeout);
+    }
+    operator bool() {
+        char c;
+        return result(c);
+    }
+    RpcResult& timeout(int ms) {
+        _timeout = ms;
+        return *this;
+    }
+private:
+    uint32_t msg_id_wait;
+    RPCClient* client;
+    struct k_mutex* read_mutex;
+    int _timeout = -1;
+};
+
 class BridgeClass {
 
     RPCClient* client = nullptr;
@@ -131,8 +168,8 @@ public:
 
     }
 
-    template<typename RType, typename... Args>
-    bool call(const MsgPack::str_t& method, RType& result, Args&&... args) {
+    template<typename... Args>
+    RpcResult call(const MsgPack::str_t& method, Args&&... args) {
 
         uint32_t msg_id_wait;
 
@@ -146,25 +183,10 @@ public:
                 k_yield();
             }
        }
-
-        // Lock read mutex
-        while(true) {
-            if (k_mutex_lock(&read_mutex, K_MSEC(10)) == 0 ) {
-                if (client->get_response(msg_id_wait, result)) {
-                    k_mutex_unlock(&read_mutex);
-                    break;
-                }
-                k_mutex_unlock(&read_mutex);
-                k_msleep(1);
-            } else {
-                k_yield();
-            }
-
-        }
-
-        return (client->lastError.code == NO_ERR);
-
+       return RpcResult{msg_id_wait, client, &read_mutex};
     }
+
+
 
     template<typename... Args>
     void notify(const MsgPack::str_t method, Args&&... args)  {
