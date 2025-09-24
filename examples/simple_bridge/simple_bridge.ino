@@ -47,7 +47,7 @@ void setup() {
 
 void loop() {
     float res;
-    if (!Bridge.call("multiply", res, 1.0, 2.0)) {
+    if (!Bridge.call("multiply", 1.0, 2.0).result(res)) {
         Serial.println("Error calling method: multiply");
         Serial.println(Bridge.get_error_code());
         Serial.println(Bridge.get_error_message());

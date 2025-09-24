@@ -110,7 +110,7 @@ public:
                                 UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
 
         bool res;
-        call(RESET_METHOD, res);
+        call(RESET_METHOD).result(res);
         if (res) {
             started = true;
         }
@@ -120,7 +120,7 @@ public:
     template<typename F>
     bool provide(const MsgPack::str_t& name, F&& func) {
         bool res;
-        if (!call(BIND_METHOD, res, name)) {
+        if (!call(BIND_METHOD, name).result(res)) {
             return false;
         }
         return server->bind(name, func);
@@ -129,7 +129,7 @@ public:
     template<typename F>
     bool provide_safe(const MsgPack::str_t& name, F&& func) {
         bool res;
-        if (!call(BIND_METHOD, res, name)) {
+        if (!call(BIND_METHOD, name).result(res)) {
             return false;
         }
 
