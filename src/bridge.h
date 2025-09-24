@@ -35,13 +35,14 @@ class RpcResult {
 public:
     RpcResult(uint32_t id, RPCClient* c, struct k_mutex* m, int timeout) : msg_id_wait(id), client(c), read_mutex(m), _timeout(timeout) {}
 
-    template<typename RType> bool result(RType& result) {
+    template<typename RType> bool result(RType& result, int timeout = -1) {
+        if (timeout > 0) _timeout = timeout;
 
         int start = millis();
         while(true) {
             if (_timeout > 0 && (millis() - start) > _timeout){
                 client->lastError.code = GENERIC_ERR;
-                client->lastError.message = "Timed out";
+                client->lastError.traceback = "Timed out";
                 break;
             }
             if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
