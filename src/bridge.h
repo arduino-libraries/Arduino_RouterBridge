@@ -29,14 +29,21 @@
 void updateEntryPoint(void *, void *, void *);
 
 class RpcResult {
-public:
-    RpcResult(uint32_t id, RPCClient* c, struct k_mutex* m) : msg_id_wait(id), client(c), read_mutex(m) {}
 
-    template<typename RType> bool result(RType& result, int timeout_ms = -1) {
-        // Lock read mutex
-        if (_timeout < 0)  _timeout = timeout_ms;
+    const int FALLBACK_TIMEOUT = 10;
+
+public:
+    RpcResult(uint32_t id, RPCClient* c, struct k_mutex* m, int timeout) : msg_id_wait(id), client(c), read_mutex(m), _timeout(timeout) {}
+
+    template<typename RType> bool result(RType& result) {
+
         int start = millis();
-        while(true && (_timeout < 0 || (millis() - start) < _timeout)) {
+        while(true) {
+            if (_timeout > 0 && (millis() - start) > _timeout){
+                client->lastError.code = GENERIC_ERR;
+                client->lastError.message = "Timed out";
+                break;
+            }
             if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
                 if (client->get_response(msg_id_wait, result)) {
                     k_mutex_unlock(read_mutex);
@@ -48,19 +55,20 @@ public:
                 k_yield();
             }
         }
-        return (client->lastError.code == NO_ERR) && (_timeout < 0 || (millis() - start) < _timeout);
+        _executed = true;
+        return client->lastError.code == NO_ERR;
     }
+
     operator bool() {
-        char c;
-        return result(c);
+        if (_executed) return client->lastError.code == NO_ERR;
+        MsgPack::object::nil_t nil;
+        return result(nil, FALLBACK_TIMEOUT);
     }
-    RpcResult& timeout(int ms) {
-        _timeout = ms;
-        return *this;
-    }
+
 private:
     uint32_t msg_id_wait;
     RPCClient* client;
+    bool _executed = false;
     struct k_mutex* read_mutex;
     int _timeout = -1;
 };
@@ -81,6 +89,8 @@ class BridgeClass {
 
     bool started = false;
 
+    int _timeout = -1;
+
 public:
 
     explicit BridgeClass(HardwareSerial& serial) {
@@ -89,6 +99,10 @@ public:
 
     operator bool() const {
         return started;
+    }
+
+    void setTimeout(int t) {
+        _timeout = t;
     }
 
     // Initialize the bridge
@@ -183,7 +197,7 @@ public:
                 k_yield();
             }
        }
-       return RpcResult{msg_id_wait, client, &read_mutex};
+       return RpcResult{msg_id_wait, client, &read_mutex, _timeout};
     }
 
 
