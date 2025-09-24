@@ -53,5 +53,17 @@ void loop() {
         Serial.println(Bridge.get_error_message());
     };
 
+    // Call with deferred response check
+    RpcResult outcome = Bridge.call("multiply", 5.0, 7.0);
+    Serial.println("RPC called");
+    delay(10);
+    if (outcome.result(res)) {
+        Serial.print("Result of the operation is: ");
+        Serial.println(res);
+    } else {
+        Serial.println(Bridge.get_error_code());
+        Serial.println(Bridge.get_error_message());
+    }
+
     Bridge.notify("signal", 200);
 }
