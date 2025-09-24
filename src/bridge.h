@@ -36,6 +36,8 @@ public:
     RpcResult(uint32_t id, RPCClient* c, struct k_mutex* m, int timeout) : msg_id_wait(id), client(c), read_mutex(m), _timeout(timeout) {}
 
     template<typename RType> bool result(RType& result, int timeout = -1) {
+        if (_executed) return client->lastError.code == NO_ERR;
+
         if (timeout > 0) _timeout = timeout;
 
         int start = millis();
@@ -61,7 +63,6 @@ public:
     }
 
     operator bool() {
-        if (_executed) return client->lastError.code == NO_ERR;
         MsgPack::object::nil_t nil;
         return result(nil, FALLBACK_TIMEOUT);
     }
