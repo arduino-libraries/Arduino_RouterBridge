@@ -16,7 +16,7 @@
 
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
-#define BRIDGE_TIMEOUT "$/bridgeTimeout"
+#define BRIDGE_ERROR "$/bridgeError"
 
 #define UPDATE_THREAD_STACK_SIZE    500
 #define UPDATE_THREAD_PRIORITY      5
@@ -34,27 +34,24 @@ class RpcResult {
 public:
     RpcError error;
 
-    RpcResult(uint32_t id, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm, unsigned long timeout) : msg_id_wait(id), client(c), read_mutex(rm), write_mutex(wm), _timeout(timeout) {}
+    RpcResult(uint32_t id, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm) : msg_id_wait(id), client(c), read_mutex(rm), write_mutex(wm) {}
 
     template<typename RType> bool result(RType& result) {
         if (_executed) return error.code == NO_ERR;
 
-        unsigned long start = millis();
         while(true) {
-            if (_timeout > 0 && (millis() - start) > _timeout){
-                error.code = GENERIC_ERR;
-                error.traceback = "Timed out";
-                k_mutex_lock(write_mutex, K_FOREVER);
-                client->notify(BRIDGE_TIMEOUT);
-                k_mutex_unlock(write_mutex);
-                break;
-            }
             if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
                 if (client->get_response(msg_id_wait, result)) {
                     error.code = client->lastError.code;
                     error.traceback = client->lastError.traceback;
                     k_mutex_unlock(read_mutex);
                     break;
+                } else if (client->lastError.code == PARSING_ERR) {
+                    error.code = client->lastError.code;
+                    error.traceback = client->lastError.traceback;
+                    k_mutex_lock(write_mutex, K_FOREVER);
+                    client->notify(BRIDGE_ERROR);
+                    k_mutex_unlock(write_mutex);
                 }
                 k_mutex_unlock(read_mutex);
                 k_msleep(1);
@@ -77,7 +74,6 @@ private:
     bool _executed = false;
     struct k_mutex* read_mutex;
     struct k_mutex* write_mutex;
-    unsigned long _timeout = -1;
 };
 
 class BridgeClass {
@@ -96,8 +92,6 @@ class BridgeClass {
 
     bool started = false;
 
-    unsigned long _timeout = -1;
-
 public:
 
     explicit BridgeClass(HardwareSerial& serial) {
@@ -106,10 +100,6 @@ public:
 
     operator bool() const {
         return started;
-    }
-
-    void setTimeout(int t) {
-        _timeout = t;
     }
 
     // Initialize the bridge
@@ -204,7 +194,7 @@ public:
                 k_yield();
             }
        }
-       return RpcResult{msg_id_wait, client, &read_mutex, &write_mutex, _timeout};
+       return RpcResult{msg_id_wait, client, &read_mutex, &write_mutex};
     }
 
 
