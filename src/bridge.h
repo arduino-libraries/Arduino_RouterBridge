@@ -41,17 +41,15 @@ public:
 
         while(true) {
             if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
-                if (client->get_response(msg_id_wait, result)) {
-                    error.code = client->lastError.code;
-                    error.traceback = client->lastError.traceback;
+                if (client->get_response(msg_id_wait, result, error)) {
                     k_mutex_unlock(read_mutex);
                     break;
-                } else if (client->lastError.code == PARSING_ERR) {
-                    error.code = client->lastError.code;
-                    error.traceback = client->lastError.traceback;
+                } else if (error.code != NO_ERR) {
+                    k_mutex_unlock(read_mutex);
                     k_mutex_lock(write_mutex, K_FOREVER);
                     client->notify(BRIDGE_ERROR, error.traceback);
                     k_mutex_unlock(write_mutex);
+                    break;
                 }
                 k_mutex_unlock(read_mutex);
                 k_msleep(1);
