@@ -121,24 +121,21 @@ private:
 
         if (size == 0) return;
 
-        k_mutex_lock(&monitor_mutex, K_FOREVER);
-
         MsgPack::arr_t<uint8_t> message;
         bool ret = bridge->call(MON_READ_METHOD, size).result(message);
 
         if (ret) {
+            k_mutex_lock(&monitor_mutex, K_FOREVER);
             for (size_t i = 0; i < message.size(); ++i) {
                 temp_buffer.store_char(static_cast<char>(message[i]));
             }
+            k_mutex_unlock(&monitor_mutex);
         }
 
         // if (bridge.lastError.code > NO_ERR) {
         //     is_connected = false;
         // }
-
-        k_mutex_unlock(&monitor_mutex);
     }
-
 
 };
 
