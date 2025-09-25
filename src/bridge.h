@@ -50,7 +50,7 @@ public:
                     error.code = client->lastError.code;
                     error.traceback = client->lastError.traceback;
                     k_mutex_lock(write_mutex, K_FOREVER);
-                    client->notify(BRIDGE_ERROR);
+                    client->notify(BRIDGE_ERROR, error.traceback);
                     k_mutex_unlock(write_mutex);
                 }
                 k_mutex_unlock(read_mutex);
