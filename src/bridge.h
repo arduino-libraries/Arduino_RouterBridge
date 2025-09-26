@@ -60,9 +60,17 @@ public:
         return error.code == NO_ERR;
     }
 
-    operator bool() {
+    bool result() {
         MsgPack::object::nil_t nil;
         return result(nil);
+    }
+
+    ~RpcResult(){
+        result();
+    }
+
+    operator bool() {
+        return result();
     }
 
 private:
