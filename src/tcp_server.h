@@ -52,7 +52,7 @@ public:
         k_mutex_lock(&server_mutex, K_FOREVER);
 
         String hostname = _addr.toString();
-        _listening = bridge->call(TCP_LISTEN_METHOD, listener_id, hostname, _port);
+        _listening = bridge->call(TCP_LISTEN_METHOD, hostname, _port).result(listener_id);
 
         k_mutex_unlock(&server_mutex);
 
@@ -70,7 +70,7 @@ public:
 
         k_mutex_lock(&server_mutex, K_FOREVER);
 
-        const bool ret = bridge->call(TCP_ACCEPT_METHOD, connection_id, listener_id);
+        const bool ret = bridge->call(TCP_ACCEPT_METHOD, listener_id).result(connection_id);
 
         k_mutex_unlock(&server_mutex);
 
@@ -104,7 +104,7 @@ public:
         k_mutex_lock(&server_mutex, K_FOREVER);
 
         String msg;
-        const bool ret = bridge->call(TCP_CLOSE_LISTENER_METHOD, msg, listener_id);
+        const bool ret = bridge->call(TCP_CLOSE_LISTENER_METHOD, listener_id).result(msg);
 
         if (ret) {
             _listening = false;

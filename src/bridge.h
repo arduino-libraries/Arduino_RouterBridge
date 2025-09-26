@@ -16,6 +16,7 @@
 
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
+//#define BRIDGE_ERROR "$/bridgeLog"
 
 #define UPDATE_THREAD_STACK_SIZE    500
 #define UPDATE_THREAD_PRIORITY      5
@@ -27,6 +28,58 @@
 
 
 void updateEntryPoint(void *, void *, void *);
+
+class RpcResult {
+
+public:
+    RpcError error;
+
+    RpcResult(uint32_t id, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm) : msg_id_wait(id), client(c), read_mutex(rm), write_mutex(wm) {}
+
+    template<typename RType> bool result(RType& result) {
+        if (_executed) return error.code == NO_ERR;
+
+        while(true) {
+            if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
+                if (client->get_response(msg_id_wait, result, error)) {
+                    k_mutex_unlock(read_mutex);
+                    // if (error.code == PARSING_ERR) {
+                    //     k_mutex_lock(write_mutex, K_FOREVER);
+                    //     client->notify(BRIDGE_ERROR, error.traceback);
+                    //     k_mutex_unlock(write_mutex);
+                    // }
+                    break;
+                }
+                k_mutex_unlock(read_mutex);
+                k_msleep(1);
+            } else {
+                k_yield();
+            }
+        }
+        _executed = true;
+        return error.code == NO_ERR;
+    }
+
+    bool result() {
+        MsgPack::object::nil_t nil;
+        return result(nil);
+    }
+
+    ~RpcResult(){
+        result();
+    }
+
+    operator bool() {
+        return result();
+    }
+
+private:
+    uint32_t msg_id_wait;
+    RPCClient* client;
+    bool _executed = false;
+    struct k_mutex* read_mutex;
+    struct k_mutex* write_mutex;
+};
 
 class BridgeClass {
 
@@ -73,7 +126,7 @@ public:
                                 UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
 
         bool res;
-        call(RESET_METHOD, res);
+        call(RESET_METHOD).result(res);
         if (res) {
             started = true;
         }
@@ -83,7 +136,7 @@ public:
     template<typename F>
     bool provide(const MsgPack::str_t& name, F&& func) {
         bool res;
-        if (!call(BIND_METHOD, res, name)) {
+        if (!call(BIND_METHOD, name).result(res)) {
             return false;
         }
         return server->bind(name, func);
@@ -92,7 +145,7 @@ public:
     template<typename F>
     bool provide_safe(const MsgPack::str_t& name, F&& func) {
         bool res;
-        if (!call(BIND_METHOD, res, name)) {
+        if (!call(BIND_METHOD, name).result(res)) {
             return false;
         }
 
@@ -131,8 +184,8 @@ public:
 
     }
 
-    template<typename RType, typename... Args>
-    bool call(const MsgPack::str_t& method, RType& result, Args&&... args) {
+    template<typename... Args>
+    RpcResult call(const MsgPack::str_t& method, Args&&... args) {
 
         uint32_t msg_id_wait;
 
@@ -145,26 +198,11 @@ public:
             } else {
                 k_yield();
             }
-        }
-
-        // Lock read mutex
-        while(true) {
-            if (k_mutex_lock(&read_mutex, K_MSEC(10)) == 0 ) {
-                if (client->get_response(msg_id_wait, result)) {
-                    k_mutex_unlock(&read_mutex);
-                    break;
-                }
-                k_mutex_unlock(&read_mutex);
-                k_msleep(1);
-            } else {
-                k_yield();
-            }
-
-        }
-
-        return (client->lastError.code == NO_ERR);
-
+       }
+       return RpcResult{msg_id_wait, client, &read_mutex, &write_mutex};
     }
+
+
 
     template<typename... Args>
     void notify(const MsgPack::str_t method, Args&&... args)  {

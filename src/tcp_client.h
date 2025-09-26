@@ -61,7 +61,7 @@ public:
 
         k_mutex_lock(&client_mutex, K_FOREVER);
 
-        const bool resp = bridge->call(TCP_CONNECT_METHOD, connection_id, hostname, port);
+        const bool resp = bridge->call(TCP_CONNECT_METHOD, hostname, port).result(connection_id);
 
         if (!resp) {
             _connected = false;
@@ -84,7 +84,7 @@ public:
 
         k_mutex_lock(&client_mutex, K_FOREVER);
 
-        const bool resp = bridge->call(TCP_CONNECT_SSL_METHOD, connection_id, hostname, port, ca_cert_str);
+        const bool resp = bridge->call(TCP_CONNECT_SSL_METHOD, hostname, port, ca_cert_str).result(connection_id);
 
         if (!resp) {
             _connected = false;
@@ -116,7 +116,7 @@ public:
         }
 
         size_t written;
-        const bool ret = bridge->call(TCP_WRITE_METHOD, written, connection_id, payload);
+        const bool ret = bridge->call(TCP_WRITE_METHOD, connection_id, payload).result(written);
         if (ret) {
             return written;
         }
@@ -170,7 +170,7 @@ public:
     void stop() override {
         k_mutex_lock(&client_mutex, K_FOREVER);
         String msg;
-        const bool resp = bridge->call(TCP_CLOSE_METHOD, msg, connection_id);
+        const bool resp = bridge->call(TCP_CLOSE_METHOD, connection_id).result(msg);
         if (resp) {
             _connected = false;
         }
@@ -198,7 +198,7 @@ private:
         k_mutex_lock(&client_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
-        const bool ret = bridge->call(TCP_READ_METHOD, message, connection_id, size);
+        const bool ret = bridge->call(TCP_READ_METHOD, connection_id, size).result(message);
 
         if (ret) {
             for (size_t i = 0; i < message.size(); ++i) {

@@ -44,7 +44,7 @@ public:
         if (!bridge_started) {
             bridge_started = bridge->begin();
         }
-        return bridge_started && bridge->call(MON_CONNECTED_METHOD, is_connected);
+        return bridge_started && bridge->call(MON_CONNECTED_METHOD).result(is_connected);
     }
 
     explicit operator bool() const {
@@ -99,7 +99,7 @@ public:
         }
 
         size_t written;
-        const bool ret = bridge->call(MON_WRITE_METHOD, written, send_buffer);
+        const bool ret = bridge->call(MON_WRITE_METHOD, send_buffer).result(written);
         if (ret) {
             return written;
         }
@@ -109,7 +109,7 @@ public:
 
     bool reset() {
         bool res;
-        bool ok = bridge->call(MON_RESET_METHOD, res);
+        bool ok = bridge->call(MON_RESET_METHOD).result(res);
         if (ok && res) {
             is_connected = false;
         }
@@ -121,24 +121,21 @@ private:
 
         if (size == 0) return;
 
-        k_mutex_lock(&monitor_mutex, K_FOREVER);
-
         MsgPack::arr_t<uint8_t> message;
-        bool ret = bridge->call(MON_READ_METHOD, message, size);
+        bool ret = bridge->call(MON_READ_METHOD, size).result(message);
 
         if (ret) {
+            k_mutex_lock(&monitor_mutex, K_FOREVER);
             for (size_t i = 0; i < message.size(); ++i) {
                 temp_buffer.store_char(static_cast<char>(message[i]));
             }
+            k_mutex_unlock(&monitor_mutex);
         }
 
         // if (bridge.lastError.code > NO_ERR) {
         //     is_connected = false;
         // }
-
-        k_mutex_unlock(&monitor_mutex);
     }
-
 
 };
 
