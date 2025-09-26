@@ -16,7 +16,7 @@
 
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
-#define BRIDGE_ERROR "$/bridgeError"
+//#define BRIDGE_ERROR "$/bridgeLog"
 
 #define UPDATE_THREAD_STACK_SIZE    500
 #define UPDATE_THREAD_PRIORITY      5
@@ -43,11 +43,11 @@ public:
             if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
                 if (client->get_response(msg_id_wait, result, error)) {
                     k_mutex_unlock(read_mutex);
-                    if (error.code == PARSING_ERR) {
-                        k_mutex_lock(write_mutex, K_FOREVER);
-                        client->notify(BRIDGE_ERROR, error.traceback);
-                        k_mutex_unlock(write_mutex);
-                    }
+                    // if (error.code == PARSING_ERR) {
+                    //     k_mutex_lock(write_mutex, K_FOREVER);
+                    //     client->notify(BRIDGE_ERROR, error.traceback);
+                    //     k_mutex_unlock(write_mutex);
+                    // }
                     break;
                 }
                 k_mutex_unlock(read_mutex);
