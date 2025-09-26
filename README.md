@@ -24,15 +24,16 @@ String greet() {
 }
 
 void setup() {
-    Serial.begin(115200);
-    while (!Serial);
+
+    Bridge.begin();
+    Monitor.begin();
     
     pinMode(LED_BUILTIN, OUTPUT);
 
     if (!Bridge.provide("set_led", set_led)) {
-        Serial.println("Error providing method: set_led");
+        Monitor.println("Error providing method: set_led");
     } else {
-        Serial.println("Registered method: set_led");
+        Monitor.println("Registered method: set_led");
     }
 
     Bridge.provide_safe("greet", greet);
@@ -42,11 +43,25 @@ void setup() {
 void loop() {
     float res;
     if (!Bridge.call("multiply", 1.0, 2.0).result(res)) {
-        Serial.println("Error calling method: multiply");
-        Serial.println(Bridge.get_error_code());
-        Serial.println(Bridge.get_error_message());
+        Monitor.println("Error calling method: multiply");
+        Monitor.println(Bridge.get_error_code());
+        Monitor.println(Bridge.get_error_message());
     };
 
     Bridge.notify("signal", 200);
 }
+```
+
+## Best practices ##
+Avoid catching Bridge call RpcResult without invoking its .result right away
+```cpp
+// OK
+float out;
+RpcResult res = Bridge.call("multiply", 1.0, 2.0);
+res.result(out);
+Monitor.println("TEST");
+
+// NOT OK
+//RpcResult res = Bridge.call("multiply", 1.0, 2.0);
+//Monitor.println("TEST");
 ```
