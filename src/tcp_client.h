@@ -198,7 +198,9 @@ private:
         k_mutex_lock(&client_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
-        const bool ret = bridge->call(TCP_READ_METHOD, connection_id, size).result(message);
+        RpcResult async_rpc = bridge->call(TCP_READ_METHOD, connection_id, size);
+
+        const bool ret = async_rpc.result(message);
 
         if (ret) {
             for (size_t i = 0; i < message.size(); ++i) {
@@ -206,7 +208,7 @@ private:
             }
         }
 
-        if (bridge->get_last_client_error().code > NO_ERR) {
+        if (async_rpc.error.code > NO_ERR) {
             _connected = false;
         }
 

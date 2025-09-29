@@ -6,7 +6,7 @@
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
     file, You can obtain one at http://mozilla.org/MPL/2.0/.
-    
+
 */
 
 #pragma once
@@ -29,15 +29,28 @@
 
 void updateEntryPoint(void *, void *, void *);
 
+template<typename... Args>
 class RpcResult {
 
 public:
     RpcError error;
 
-    RpcResult(uint32_t id, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm) : msg_id_wait(id), client(c), read_mutex(rm), write_mutex(wm) {}
+    RpcResult(const MsgPack::str_t& m, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm, Args&&... args): method(m), client(c), read_mutex(rm), write_mutex(wm), callback_params(std::forward_as_tuple(std::forward<Args>(args)...)) {}
 
     template<typename RType> bool result(RType& result) {
         if (_executed) return error.code == NO_ERR;
+
+        while (true) {
+            if (k_mutex_lock(write_mutex, K_MSEC(10)) == 0) {
+                std::apply([this](const auto&... elems) {
+                    client->send_rpc(method, msg_id_wait, elems...);
+                }, callback_params);
+                k_mutex_unlock(write_mutex);
+                break;
+            } else {
+                k_yield();
+            }
+        }
 
         while(true) {
             if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
@@ -74,11 +87,14 @@ public:
     }
 
 private:
-    uint32_t msg_id_wait;
-    RPCClient* client;
+    uint32_t msg_id_wait{};
     bool _executed = false;
+
+    MsgPack::str_t method;
+    RPCClient* client;
     struct k_mutex* read_mutex;
     struct k_mutex* write_mutex;
+    std::tuple<Args...> callback_params;
 };
 
 class BridgeClass {
@@ -150,7 +166,7 @@ public:
         }
 
         return server->bind(name, func, "__safe__");
-    
+
     }
 
     void update() {
@@ -171,7 +187,7 @@ public:
 
         // Lock write mutex
         while (true) {
-        
+
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
                 server->send_response(req);
                 k_mutex_unlock(&write_mutex);
@@ -185,24 +201,9 @@ public:
     }
 
     template<typename... Args>
-    RpcResult call(const MsgPack::str_t& method, Args&&... args) {
-
-        uint32_t msg_id_wait;
-
-        // Lock write mutex
-        while (true) {
-            if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0) {
-                client->send_rpc(method, msg_id_wait, std::forward<Args>(args)...);
-                k_mutex_unlock(&write_mutex);
-                break;
-            } else {
-                k_yield();
-            }
-       }
-       return RpcResult{msg_id_wait, client, &read_mutex, &write_mutex};
+    RpcResult<Args...> call(const MsgPack::str_t& method, Args&&... args) {
+       return RpcResult<Args...>(method, client, &read_mutex, &write_mutex, std::forward<Args>(args)...);
     }
-
-
 
     template<typename... Args>
     void notify(const MsgPack::str_t method, Args&&... args)  {
@@ -214,18 +215,6 @@ public:
             }
             k_yield();
         }
-    }
-
-    String get_error_message() const {
-        return static_cast<String>(client->lastError.traceback);
-    }
-
-    uint8_t get_error_code() const {
-        return static_cast<uint8_t>(client->lastError.code);
-    }
-
-    RpcError& get_last_client_error() const {
-        return client->lastError;
     }
 
 private:
@@ -248,7 +237,7 @@ private:
 
         // Lock write mutex
         while (true) {
-        
+
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
                 server->send_response(req);
                 k_mutex_unlock(&write_mutex);
@@ -258,7 +247,7 @@ private:
             }
 
         }
-    
+
     }
 
     friend class BridgeClassUpdater;
