@@ -9,18 +9,6 @@
     
 */
 
-// to run this test example, launch server_test in a shell and then this sketch
-
-
-/* available registers 
-    register("ping")
-    register("0_args_no_result")
-    register("1_args_no_result")
-    register("2_args_no_result")
-    register("0_args_bool_result")
-    register("1_args_bool_result")
-    register("2_args_bool_result")
-*/
 
 #include "Arduino_RouterBridge.h"
 
@@ -42,7 +30,7 @@ void loop() {
     Bridge.call("0_args_no_result");
 
     if (Bridge.call("0_args_no_result")){
-      Monitor.println("0_args_no_result TRUE without result");                    // return true because no result
+      Monitor.println("0_args_no_result TRUE without result"); // returns true because there's no result
     }
     else{
       Monitor.println("0_args_no_result FALSE without result");
@@ -52,12 +40,12 @@ void loop() {
       Monitor.println("0_args_bool_result TRUE without result");
     }
     else{
-      Monitor.println("0_args_bool_result FALSE without result");                // return false because you need check the result
+      Monitor.println("0_args_bool_result FALSE without result"); // returns false -> check the result
     }
 
-    x=false;
+    x = false;
     if (Bridge.call("0_args_bool_result").result(x)){
-      Monitor.println("0_args_bool_result TRUE with result: "+String(x));                       // return true - the perfect call
+      Monitor.println("0_args_bool_result TRUE with result: "+String(x)); // returns true - the perfect call
     }
     else{
       Monitor.println("0_args_bool_result FALSE witt result: "+String(x));
@@ -65,21 +53,50 @@ void loop() {
 
     int y = -1;
     if (Bridge.call("0_args_bool_result").result(y)){
-      Monitor.println("0_args_bool_result TRUE with result: "+String(y)+" (wrong result type)");                       // return true - the perfect call
+      Monitor.println("0_args_bool_result TRUE with result: "+String(y)+" (wrong result type)");
     }
-    else{
-      Monitor.println("0_args_bool_result FALSE with result: "+String(y)+" (wrong result type)");
+    else {
+      Monitor.println("0_args_bool_result FALSE with result: "+String(y)+" (wrong result type)"); // returns false - wrong type
     }
 
+    float pow;
+    RpcResult async_res = Bridge.call("1_args_float_result", 2.0, 3.0);  // passing 2 args to a function expecting 1
+    if (async_res.result(pow)) {
+      Monitor.println("Result of assignment and then result: "+String(pow)); // returns true, so the right result
+    } else {
+      Monitor.println("Error code: "+String(async_res.error.code));
+      Monitor.println("Error message: "+async_res.error.traceback);
+    }
 
-    // avoid to do followings
+    float div = 0;
+    RpcResult async_res1 = Bridge.call("2_args_float_result", 2.0);  // passing 1 arg when 2 are expected
+    if (async_res1.result(div)) {
+      Monitor.println("Result of assignment and then result: "+String(div)); // returns true, so the right result
+    } else {
+      Monitor.println("Error code: "+String(async_res1.error.code));
+      Monitor.println("Error message: "+async_res1.error.traceback);
+    }
 
-    RpcResult result = Bridge.call("0_args_bool_result");    // the call happens but you won't get the result
+    div = 0;
+    RpcResult async_res2 = Bridge.call("2_args_float_result", 2.0, "invalid");  // passing a wrong type arg
+    if (async_res2.result(div)) {
+      Monitor.println("Result of assignment and then result: "+String(div)); // returns true, so the right result
+    } else {
+      Monitor.println("Error code: "+String(async_res2.error.code));
+      Monitor.println("Error message: "+async_res2.error.traceback);
+    }
 
-    bool x = false;
-    RpcResult result2 = Bridge.call("0_args_bool_result"); 
-    result2.result(x);
-    Monitor.println("Result of assignment and then result: "+String(x));                   // return true, so the right result
+    x = false;
+    RpcResult async_res3 = Bridge.call("0_args_bool_result");
+    if (async_res3.result(x)) {
+        Monitor.println("Result of assignment and then result: "+String(x)); // returns true, so the right result
+    } else {
+        Monitor.println("Error expecting bool result: "+String(async_res3.error.code));
+    }
+
+    // Avoid the following:
+    // the call happens in the destructor falling back to the "no_result" case (a type mismatch here)
+    RpcResult async_res4 = Bridge.call("0_args_bool_result");
 
     delay(1000);
 }

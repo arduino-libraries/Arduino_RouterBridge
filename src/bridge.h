@@ -32,10 +32,6 @@ void updateEntryPoint(void *, void *, void *);
 template<typename... Args>
 class RpcResult {
 
-private:
-    std::tuple<Args...> callback_params;
-    MsgPack::str_t method;
-
 public:
     RpcError error;
 
@@ -92,10 +88,13 @@ public:
 
 private:
     uint32_t msg_id_wait{};
-    RPCClient* client;
     bool _executed = false;
+
+    MsgPack::str_t method;
+    RPCClient* client;
     struct k_mutex* read_mutex;
     struct k_mutex* write_mutex;
+    std::tuple<Args...> callback_params;
 };
 
 class BridgeClass {
@@ -206,8 +205,6 @@ public:
        return RpcResult<Args...>(method, client, &read_mutex, &write_mutex, std::forward<Args>(args)...);
     }
 
-
-
     template<typename... Args>
     void notify(const MsgPack::str_t method, Args&&... args)  {
         while (true) {
@@ -218,18 +215,6 @@ public:
             }
             k_yield();
         }
-    }
-
-    String get_error_message() const {
-        return static_cast<String>(client->lastError.traceback);
-    }
-
-    uint8_t get_error_code() const {
-        return static_cast<uint8_t>(client->lastError.code);
-    }
-
-    RpcError& get_last_client_error() const {
-        return client->lastError;
     }
 
 private:

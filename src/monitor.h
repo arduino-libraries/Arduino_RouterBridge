@@ -122,7 +122,9 @@ private:
         if (size == 0) return;
 
         MsgPack::arr_t<uint8_t> message;
-        bool ret = bridge->call(MON_READ_METHOD, size).result(message);
+        RpcResult async_rpc = bridge->call(MON_READ_METHOD, size);
+
+        const bool ret = async_rpc.result(message);
 
         if (ret) {
             k_mutex_lock(&monitor_mutex, K_FOREVER);
@@ -132,7 +134,7 @@ private:
             k_mutex_unlock(&monitor_mutex);
         }
 
-        // if (bridge.lastError.code > NO_ERR) {
+        // if (async_rpc.error.code > NO_ERR) {
         //     is_connected = false;
         // }
     }
