@@ -34,43 +34,52 @@ void setup() {
 
 void loop() {
 
-    //testing monitor
-    Monitor.println(String(i)+"\t"+String(x));
+    // testing monitor
+    Monitor.println("\r\n"+String(i));
     i++;
-    //working
+
+    // working
     Bridge.call("0_args_no_result");
 
     if (Bridge.call("0_args_no_result")){
-      Monitor.println("ok");                                  // return true because no result
+      Monitor.println("0_args_no_result TRUE without result");                    // return true because no result
     }
     else{
-      Monitor.println("no");
+      Monitor.println("0_args_no_result FALSE without result");
     }
 
     if (Bridge.call("0_args_bool_result")){
-      Monitor.println("ok");
+      Monitor.println("0_args_bool_result TRUE without result");
     }
     else{
-      Monitor.println("no");                                  // return false because you need check the result
+      Monitor.println("0_args_bool_result FALSE without result");                // return false because you need check the result
     }
 
     x=false;
     if (Bridge.call("0_args_bool_result").result(x)){
-      Monitor.println("ok "+String(x));                       // return true - the perfect call
+      Monitor.println("0_args_bool_result TRUE with result: "+String(x));                       // return true - the perfect call
     }
     else{
-      Monitor.println("no "+String(x));
+      Monitor.println("0_args_bool_result FALSE witt result: "+String(x));
+    }
+
+    int y = -1;
+    if (Bridge.call("0_args_bool_result").result(y)){
+      Monitor.println("0_args_bool_result TRUE with result: "+String(y)+" (wrong result type)");                       // return true - the perfect call
+    }
+    else{
+      Monitor.println("0_args_bool_result FALSE with result: "+String(y)+" (wrong result type)");
     }
 
 
-    //avoid to do followings
+    // avoid to do followings
 
     RpcResult result = Bridge.call("0_args_bool_result");    // the call happens but you won't get the result
 
     bool x = false;
     RpcResult result2 = Bridge.call("0_args_bool_result"); 
     result2.result(x);
-    Monitor.println("Result: "+String(x));                   // return true, so the right result
+    Monitor.println("Result of assignment and then result: "+String(x));                   // return true, so the right result
 
     delay(1000);
 }
