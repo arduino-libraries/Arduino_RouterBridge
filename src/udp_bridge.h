@@ -20,24 +20,30 @@ This file is part of the Arduino_RouterBridge library.
 #define UDP_WRITE_METHOD            "udp/write"
 #define UDP_READ_METHOD             "udp/read"
 
-#include <zephyr/sys/atomic.h>
 #include <api/Udp.h>
 
+#define DEFAULT_UDP_BUF_SIZE    65507
+
+
+template<size_t BufferSize=DEFAULT_UDP_BUF_SIZE>
 class BridgeUDP final: public UDP {
 
     BridgeClass* bridge;
     uint32_t connection_id{};
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex udp_mutex{};
-    atomic_t _connected;
+    bool _connected = false;
 
-    uint16_t _port; // local port to listen on
+    uint16_t _port{}; // local port to listen on
 
-    //IPAddress _remoteIP; // remote IP address for the incoming packet whilst it's being processed
-    String _remoteHost;
-    uint16_t _remotePort; // remote port for the incoming packet whilst it's being processed
-    uint16_t _offset; // offset into the packet being sent
-    uint16_t _remaining; // remaining bytes of incoming packet yet to be processed
+    // Outbound packets target
+    String _targetHost{};
+    uint16_t _targetPort{};
+
+    // Inbound packet info
+    IPAddress _remoteIP{}; // remote IP address for the incoming packet whilst it's being processed
+    uint16_t _remotePort{}; // remote port for the incoming packet whilst it's being processed
+    uint16_t _remaining{}; // remaining bytes of incoming packet yet to be processed
 
 public:
 
@@ -45,64 +51,53 @@ public:
 
     uint8_t begin(uint16_t port) override {
 
-        if (connected()) return 1;
-
         if (!init()) {
             return 0;
         }
 
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        String hostname = "0.0.0.0";
-        const bool resp = bridge->call(UDP_CONNECT_METHOD, connection_id, hostname, port);
-
-        if (!resp) {
-            atomic_set(&_connected, 0);
+        if (_connected) {
             k_mutex_unlock(&udp_mutex);
-            return 0;
+            return 1;
         }
-        atomic_set(&_connected, 1);
 
-        _port = port;
+        String hostname = "0.0.0.0";
+        const bool ok = bridge->call(UDP_CONNECT_METHOD, hostname, port).result(connection_id);
+        _connected = ok;
+        if (_connected) _port = port;
         k_mutex_unlock(&udp_mutex);
 
-        return 1;
+        return ok? 1 : 0;
     }
 
     uint8_t beginMulticast(IPAddress ip, uint16_t port) override {
 
-        if (connected()) return 1;
-
         if (!init()) {
             return 0;
         }
 
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        String hostname = ip.toString();
-        const bool resp = bridge->call(UDP_CONNECT_MULTI_METHOD, connection_id, hostname, port);
-
-        if (!resp) {
-            atomic_set(&_connected, 0);
+        if (_connected) {
             k_mutex_unlock(&udp_mutex);
-            return 0;
+            return 1;
         }
-        atomic_set(&_connected, 1);
 
-        _port = port;
+        String hostname = ip.toString();
+        const bool ok = bridge->call(UDP_CONNECT_MULTI_METHOD, hostname, port).result(connection_id);
+        _connected = ok;
+        if (_connected) _port = port;
         k_mutex_unlock(&udp_mutex);
 
-        return 1;
+        return ok? 1 : 0;
     }
 
     void stop() override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
         String msg;
-        const bool resp = bridge->call(UDP_CLOSE_METHOD, msg, connection_id);
-        if (resp) {
-            atomic_set(&_connected, 0);
-        }
+        _connected = !bridge->call(UDP_CLOSE_METHOD, connection_id).result(msg);
 
         k_mutex_unlock(&udp_mutex);
     }
@@ -115,25 +110,68 @@ public:
 
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        _remoteHost = host;
-        _remotePort = port;
+        _targetHost = host;
+        _targetPort = port;
 
         k_mutex_unlock(&udp_mutex);
 
         return 1;
     }
 
-    int endPacket() override;
+    int endPacket() override {
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+
+        _targetHost = "";
+        _targetPort = 0;
+
+        k_mutex_unlock(&udp_mutex);
+        return 1;
+    }
 
     size_t write(uint8_t c) override {
         return write(&c, 1);
     }
 
-    size_t write(const uint8_t *buffer, size_t size) override;
+    size_t write(const uint8_t *buffer, size_t size) override {
+
+        if (!connected()) return 0;
+
+        MsgPack::arr_t<uint8_t> payload;
+
+        for (size_t i = 0; i < size; ++i) {
+            payload.push_back(buffer[i]);
+        }
+
+        size_t written;
+        const bool ok = bridge->call(UDP_WRITE_METHOD, connection_id, _targetHost, _targetPort, payload).result(written);
+        return ok? written : 0;
+    }
 
     using Print::write;
 
-    int parsePacket() override;
+    int parsePacket() override {
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+
+        while (_remaining) read();
+
+        int out = 0;
+        if (available() >= 8) {
+            uint8_t tmpBuf[8];
+            for (size_t i = 0; i < 8; ++i) {
+                tmpBuf[i] = temp_buffer.read_char();
+            }
+            _remoteIP = tmpBuf;
+            _remotePort = tmpBuf[4];
+            _remotePort = (_remotePort << 8) + tmpBuf[5];
+            _remaining = tmpBuf[6];
+            _remaining = (_remaining << 8) + tmpBuf[7];
+            out = _remaining;
+        }
+
+        k_mutex_unlock(&udp_mutex);
+
+        return out;
+    }
 
     int available() override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
@@ -144,22 +182,66 @@ public:
         return _available;
     }
 
-    int read() override;
+    int read() override {
+        uint8_t c;
+        read(&c, 1);
+        return c;
+    }
 
-    int read(unsigned char *buffer, size_t len) override;
+    int read(unsigned char *buffer, size_t len) override {
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+        int i = 0;
+        while (temp_buffer.available() && i < len) {
+            buffer[i++] = temp_buffer.read_char();
+            _remaining--;
+        }
+        k_mutex_unlock(&udp_mutex);
+        return i;
+    }
 
-    int read(char *buffer, size_t len) override;
+    int read(char *buffer, size_t len) override {
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+        int i = 0;
+        while (temp_buffer.available() && i < len) {
+            buffer[i++] = static_cast<char>(temp_buffer.read_char());
+            _remaining--;
+        }
+        k_mutex_unlock(&udp_mutex);
+        return i;
+    }
 
-    int peek() override;
+    int peek() override {
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+        int out = 0;
+        if (!_connected || _remaining == 0) out = -1;
+        out = temp_buffer.peek();
+        k_mutex_unlock(&udp_mutex);
+        return out;
+    }
 
-    void flush() override;
+    void flush() override {
+        // Implemented only when there's a TX buffer
+    }
 
-    IPAddress remoteIP() override;
+    IPAddress remoteIP() override {
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+        const IPAddress ip = _remoteIP;
+        k_mutex_unlock(&udp_mutex);
+        return ip;
+    }
 
-    uint16_t remotePort() override;
+    uint16_t remotePort() override {
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+        const uint16_t port = _remotePort;
+        k_mutex_unlock(&udp_mutex);
+        return port;
+    }
 
-    bool connected() const {
-        return atomic_get(&_connected) > 0;
+    bool connected() {
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+        const bool ok = _connected;
+        k_mutex_unlock(&udp_mutex);
+        return ok;
     }
 
 private:
@@ -174,12 +256,13 @@ private:
 
     void _read(size_t size) {
 
-        if (size == 0 || !connected()) return;
-
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
+        if (size == 0 || !_connected) return;
+
         MsgPack::arr_t<uint8_t> message;
-        const bool ret = bridge->call(TCP_READ_METHOD, message, connection_id, size);
+        RpcResult async_res = bridge->call(TCP_READ_METHOD, connection_id, size);
+        const bool ret = async_res.result(message);
 
         if (ret) {
             for (size_t i = 0; i < message.size(); ++i) {
@@ -187,8 +270,8 @@ private:
             }
         }
 
-        if (bridge->get_last_client_error().code > NO_ERR) {
-            atomic_set(&_connected, 0);
+        if (async_res.error.code > NO_ERR) {
+            _connected = false;
         }
 
         k_mutex_unlock(&udp_mutex);
