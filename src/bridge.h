@@ -6,7 +6,7 @@
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
     file, You can obtain one at http://mozilla.org/MPL/2.0/.
-    
+
 */
 
 #pragma once
@@ -16,6 +16,7 @@
 
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
+//#define BRIDGE_ERROR "$/bridgeLog"
 
 #define UPDATE_THREAD_STACK_SIZE    500
 #define UPDATE_THREAD_PRIORITY      5
@@ -27,6 +28,74 @@
 
 
 void updateEntryPoint(void *, void *, void *);
+
+template<typename... Args>
+class RpcResult {
+
+public:
+    RpcError error;
+
+    RpcResult(const MsgPack::str_t& m, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm, Args&&... args): method(m), client(c), read_mutex(rm), write_mutex(wm), callback_params(std::forward_as_tuple(std::forward<Args>(args)...)) {}
+
+    template<typename RType> bool result(RType& result) {
+        if (_executed) return error.code == NO_ERR;
+
+        while (true) {
+            if (k_mutex_lock(write_mutex, K_MSEC(10)) == 0) {
+                std::apply([this](const auto&... elems) {
+                    client->send_rpc(method, msg_id_wait, elems...);
+                }, callback_params);
+                k_mutex_unlock(write_mutex);
+                break;
+            } else {
+                k_yield();
+            }
+        }
+
+        while(true) {
+            if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
+                if (client->get_response(msg_id_wait, result, error)) {
+                    k_mutex_unlock(read_mutex);
+                    // if (error.code == PARSING_ERR) {
+                    //     k_mutex_lock(write_mutex, K_FOREVER);
+                    //     client->notify(BRIDGE_ERROR, error.traceback);
+                    //     k_mutex_unlock(write_mutex);
+                    // }
+                    break;
+                }
+                k_mutex_unlock(read_mutex);
+                k_msleep(1);
+            } else {
+                k_yield();
+            }
+        }
+        _executed = true;
+        return error.code == NO_ERR;
+    }
+
+    bool result() {
+        MsgPack::object::nil_t nil;
+        return result(nil);
+    }
+
+    ~RpcResult(){
+        result();
+    }
+
+    operator bool() {
+        return result();
+    }
+
+private:
+    uint32_t msg_id_wait{};
+    bool _executed = false;
+
+    MsgPack::str_t method;
+    RPCClient* client;
+    struct k_mutex* read_mutex;
+    struct k_mutex* write_mutex;
+    std::tuple<Args...> callback_params;
+};
 
 class BridgeClass {
 
@@ -73,7 +142,7 @@ public:
                                 UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
 
         bool res;
-        call(RESET_METHOD, res);
+        call(RESET_METHOD).result(res);
         if (res) {
             started = true;
         }
@@ -83,7 +152,7 @@ public:
     template<typename F>
     bool provide(const MsgPack::str_t& name, F&& func) {
         bool res;
-        if (!call(BIND_METHOD, res, name)) {
+        if (!call(BIND_METHOD, name).result(res)) {
             return false;
         }
         return server->bind(name, func);
@@ -92,12 +161,12 @@ public:
     template<typename F>
     bool provide_safe(const MsgPack::str_t& name, F&& func) {
         bool res;
-        if (!call(BIND_METHOD, res, name)) {
+        if (!call(BIND_METHOD, name).result(res)) {
             return false;
         }
 
         return server->bind(name, func, "__safe__");
-    
+
     }
 
     void update() {
@@ -118,72 +187,34 @@ public:
 
         // Lock write mutex
         while (true) {
-        
+
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
                 server->send_response(req);
                 k_mutex_unlock(&write_mutex);
-                k_msleep(1);
                 break;
             } else {
-                k_msleep(1);
+                k_yield();
             }
 
         }
-
-    }
-
-    template<typename RType, typename... Args>
-    bool call(const MsgPack::str_t& method, RType& result, Args&&... args) {
-
-        uint32_t msg_id_wait;
-
-        // Lock write mutex
-        while (true) {
-            if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0) {
-                client->send_rpc(method, msg_id_wait, std::forward<Args>(args)...);
-                k_mutex_unlock(&write_mutex);
-                k_msleep(1);
-                break;
-            } else {
-                k_msleep(1);
-            }
-       }
-
-        // Lock read mutex
-        while(true) {
-            if (k_mutex_lock(&read_mutex, K_MSEC(10)) == 0 ) {
-                if (client->get_response(msg_id_wait, result)) {
-                    k_mutex_unlock(&read_mutex);
-                    k_msleep(1);
-                    break;
-                }
-                k_mutex_unlock(&read_mutex);
-                k_msleep(1);
-            } else {
-                k_msleep(1);
-            }
-
-        }
-
-        return (client->lastError.code == NO_ERR);
 
     }
 
     template<typename... Args>
+    RpcResult<Args...> call(const MsgPack::str_t& method, Args&&... args) {
+       return RpcResult<Args...>(method, client, &read_mutex, &write_mutex, std::forward<Args>(args)...);
+    }
+
+    template<typename... Args>
     void notify(const MsgPack::str_t method, Args&&... args)  {
-        client->notify(method, std::forward<Args>(args)...);
-    }
-
-    String get_error_message() const {
-        return static_cast<String>(client->lastError.traceback);
-    }
-
-    uint8_t get_error_code() const {
-        return static_cast<uint8_t>(client->lastError.code);
-    }
-
-    RpcError& get_last_client_error() const {
-        return client->lastError;
+        while (true) {
+            if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0) {
+                client->notify(method, std::forward<Args>(args)...);
+                k_mutex_unlock(&write_mutex);
+                break;
+            }
+            k_yield();
+        }
     }
 
 private:
@@ -206,18 +237,17 @@ private:
 
         // Lock write mutex
         while (true) {
-        
+
             if (k_mutex_lock(&write_mutex, K_MSEC(10)) == 0){
                 server->send_response(req);
                 k_mutex_unlock(&write_mutex);
-                k_msleep(1);
                 break;
             } else {
-                k_msleep(1);
+                k_yield();
             }
 
         }
-    
+
     }
 
     friend class BridgeClassUpdater;
@@ -243,7 +273,7 @@ inline void updateEntryPoint(void *, void *, void *){
         if (Bridge) {
             Bridge.update();
         }
-        k_msleep(1);
+        k_yield();
     }
 }
 
@@ -253,7 +283,7 @@ static void safeUpdate(){
 
 // leave as is
 void __loopHook(void){
-    k_msleep(1);
+    k_yield();
     safeUpdate();
 }
 
