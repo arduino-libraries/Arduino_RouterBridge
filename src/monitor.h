@@ -30,7 +30,7 @@ class BridgeMonitor: public Stream {
     BridgeClass* bridge;
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex monitor_mutex{};
-    bool is_connected = false;
+    bool _connected = false;
 
 public:
     explicit BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
@@ -40,15 +40,31 @@ public:
     bool begin(unsigned long _legacy_baud=0, uint16_t _legacy_config=0) {
         k_mutex_init(&monitor_mutex);
 
+        if (is_connected()) return true;
+
         bool bridge_started = (*bridge);
         if (!bridge_started) {
             bridge_started = bridge->begin();
         }
-        return bridge_started && bridge->call(MON_CONNECTED_METHOD).result(is_connected);
+
+        if (!bridge_started) return false;
+
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        bool out = false;
+        _connected = bridge->call(MON_CONNECTED_METHOD).result(out) && out;
+        k_mutex_unlock(&monitor_mutex);
+        return out;
     }
 
-    explicit operator bool() const {
-        return is_connected;
+    bool is_connected() {
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        bool out = _connected;
+        k_mutex_unlock(&monitor_mutex);
+        return out;
+    }
+
+    explicit operator bool() {
+        return is_connected();
     }
 
     int read() override {
@@ -109,11 +125,11 @@ public:
 
     bool reset() {
         bool res;
-        bool ok = bridge->call(MON_RESET_METHOD).result(res);
-        if (ok && res) {
-            is_connected = false;
-        }
-        return (ok && res);
+        bool ok = bridge->call(MON_RESET_METHOD).result(res) && res;
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        _connected = !ok;
+        k_mutex_unlock(&monitor_mutex);
+        return ok;
     }
 
 private:
@@ -135,7 +151,9 @@ private:
         }
 
         // if (async_rpc.error.code > NO_ERR) {
-        //     is_connected = false;
+        //     k_mutex_lock(&monitor_mutex, K_FOREVER);
+        //     _connected = false;
+        //     k_mutex_unlock(&monitor_mutex);
         // }
     }
 
