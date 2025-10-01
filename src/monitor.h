@@ -95,8 +95,9 @@ public:
     int peek() override {
         k_mutex_lock(&monitor_mutex, K_FOREVER);
         if (temp_buffer.available()) {
+            int c = temp_buffer.peek();
             k_mutex_unlock(&monitor_mutex);
-            return temp_buffer.peek();
+            return c;
         }
         k_mutex_unlock(&monitor_mutex);
         return -1;
