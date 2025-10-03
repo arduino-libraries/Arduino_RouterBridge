@@ -108,7 +108,8 @@ class BridgeClass {
     struct k_mutex write_mutex{};
 
     k_tid_t upd_tid{};
-    k_thread_stack_t *upd_stack_area{};
+    //k_thread_stack_t *upd_stack_area{};
+    K_THREAD_STACK_DEFINE(upd_thread_stack, UPDATE_THREAD_STACK_SIZE);
     struct k_thread upd_thread_data{};
 
     bool started = false;
@@ -134,9 +135,10 @@ public:
         client = new RPCClient(*transport);
         server = new RPCServer(*transport);
 
-        upd_stack_area = k_thread_stack_alloc(UPDATE_THREAD_STACK_SIZE, 0);
-        upd_tid = k_thread_create(&upd_thread_data, upd_stack_area,
-                                UPDATE_THREAD_STACK_SIZE,
+        //upd_stack_area = k_thread_stack_alloc(UPDATE_THREAD_STACK_SIZE, 0);
+
+        upd_tid = k_thread_create(&upd_thread_data, upd_thread_stack,
+                       K_THREAD_STACK_SIZEOF(upd_thread_stack),
                                 updateEntryPoint,
                                 NULL, NULL, NULL,
                                 UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
