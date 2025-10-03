@@ -94,13 +94,12 @@ public:
 
     int peek() override {
         k_mutex_lock(&monitor_mutex, K_FOREVER);
+        int out = -1;
         if (temp_buffer.available()) {
-            int c = temp_buffer.peek();
-            k_mutex_unlock(&monitor_mutex);
-            return c;
+            out = temp_buffer.peek();
         }
         k_mutex_unlock(&monitor_mutex);
-        return -1;
+        return out;
     }
 
     size_t write(uint8_t c) override {
@@ -117,11 +116,8 @@ public:
 
         size_t written;
         const bool ret = bridge->call(MON_WRITE_METHOD, send_buffer).result(written);
-        if (ret) {
-            return written;
-        }
 
-        return 0;
+        return ret? written : 0;
     }
 
     bool reset() {
@@ -138,24 +134,23 @@ private:
 
         if (size == 0) return;
 
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+
         MsgPack::arr_t<uint8_t> message;
         RpcResult async_rpc = bridge->call(MON_READ_METHOD, size);
-
-        const bool ret = async_rpc.result(message);
+        const bool ret = _connected && async_rpc.result(message);
 
         if (ret) {
-            k_mutex_lock(&monitor_mutex, K_FOREVER);
             for (size_t i = 0; i < message.size(); ++i) {
                 temp_buffer.store_char(static_cast<char>(message[i]));
             }
-            k_mutex_unlock(&monitor_mutex);
         }
 
         // if (async_rpc.error.code > NO_ERR) {
-        //     k_mutex_lock(&monitor_mutex, K_FOREVER);
         //     _connected = false;
-        //     k_mutex_unlock(&monitor_mutex);
         // }
+
+        k_mutex_unlock(&monitor_mutex);
     }
 
 };

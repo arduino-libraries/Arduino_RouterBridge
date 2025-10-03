@@ -91,13 +91,12 @@ public:
         if (!client) return 0;
 
         k_mutex_lock(&server_mutex, K_FOREVER);
+        size_t written = 0;
         if (_connected) {
-            size_t written = client.write(buf, size);
-            k_mutex_unlock(&server_mutex);
-            return written;
+            written = client.write(buf, size);
         }
         k_mutex_unlock(&server_mutex);
-        return 0;
+        return written;
     }
 
     void close() {
