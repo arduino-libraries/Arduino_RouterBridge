@@ -22,7 +22,7 @@ This file is part of the Arduino_RouterBridge library.
 
 #include <api/Udp.h>
 
-#define DEFAULT_UDP_BUF_SIZE    65507
+#define DEFAULT_UDP_BUF_SIZE    4096
 
 
 template<size_t BufferSize=DEFAULT_UDP_BUF_SIZE>
@@ -57,15 +57,11 @@ public:
 
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        if (_connected) {
-            k_mutex_unlock(&udp_mutex);
-            return 1;
-        }
-
         String hostname = "0.0.0.0";
-        const bool ok = bridge->call(UDP_CONNECT_METHOD, hostname, port).result(connection_id);
+        const bool ok = _connected || bridge->call(UDP_CONNECT_METHOD, hostname, port).result(connection_id);
         _connected = ok;
         if (_connected) _port = port;
+
         k_mutex_unlock(&udp_mutex);
 
         return ok? 1 : 0;
@@ -79,15 +75,11 @@ public:
 
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        if (_connected) {
-            k_mutex_unlock(&udp_mutex);
-            return 1;
-        }
-
         String hostname = ip.toString();
-        const bool ok = bridge->call(UDP_CONNECT_MULTI_METHOD, hostname, port).result(connection_id);
+        const bool ok = _connected || bridge->call(UDP_CONNECT_MULTI_METHOD, hostname, port).result(connection_id);
         _connected = ok;
         if (_connected) _port = port;
+
         k_mutex_unlock(&udp_mutex);
 
         return ok? 1 : 0;
@@ -97,7 +89,9 @@ public:
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
         String msg;
-        _connected = !bridge->call(UDP_CLOSE_METHOD, connection_id).result(msg);
+        if (_connected) {
+            _connected = !bridge->call(UDP_CLOSE_METHOD, connection_id).result(msg);
+        }
 
         k_mutex_unlock(&udp_mutex);
     }
@@ -152,7 +146,7 @@ public:
     int parsePacket() override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        while (_remaining) read();
+        while (_remaining) read();  // ensure previous packet is read
 
         int out = 0;
         if (available() >= 8) {
@@ -188,10 +182,11 @@ public:
         return c;
     }
 
+    // reading stops when the UDP package has been read completely (_remaining = 0)
     int read(unsigned char *buffer, size_t len) override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
         int i = 0;
-        while (temp_buffer.available() && i < len) {
+        while (_remaining && i < len && available()) {
             buffer[i++] = temp_buffer.read_char();
             _remaining--;
         }
@@ -202,7 +197,7 @@ public:
     int read(char *buffer, size_t len) override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
         int i = 0;
-        while (temp_buffer.available() && i < len) {
+        while (_remaining && i < len && available()) {
             buffer[i++] = static_cast<char>(temp_buffer.read_char());
             _remaining--;
         }
@@ -212,9 +207,10 @@ public:
 
     int peek() override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
-        int out = 0;
-        if (!_connected || _remaining == 0) out = -1;
-        out = temp_buffer.peek();
+        int out = -1;
+        if (_remaining && temp_buffer.available()) {
+            out = temp_buffer.peek();
+        }
         k_mutex_unlock(&udp_mutex);
         return out;
     }
@@ -256,13 +252,13 @@ private:
 
     void _read(size_t size) {
 
-        k_mutex_lock(&udp_mutex, K_FOREVER);
+        if (size == 0) return;
 
-        if (size == 0 || !_connected) return;
+        k_mutex_lock(&udp_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
         RpcResult async_res = bridge->call(TCP_READ_METHOD, connection_id, size);
-        const bool ret = async_res.result(message);
+        const bool ret = _connected && async_res.result(message);
 
         if (ret) {
             for (size_t i = 0; i < message.size(); ++i) {
