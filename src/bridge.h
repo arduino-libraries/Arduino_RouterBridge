@@ -140,6 +140,7 @@ public:
                                 updateEntryPoint,
                                 NULL, NULL, NULL,
                                 UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
+        k_thread_name_set(upd_tid, "bridge");
 
         bool res;
         call(RESET_METHOD).result(res);
