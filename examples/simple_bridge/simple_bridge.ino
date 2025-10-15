@@ -49,8 +49,6 @@ void loop() {
     float res;
     if (!Bridge.call("multiply", 1.0, 2.0).result(res)) {
         Serial.println("Error calling method: multiply");
-        Serial.println(Bridge.get_error_code());
-        Serial.println(Bridge.get_error_message());
     };
 
     // Call with deferred response check
@@ -61,8 +59,8 @@ void loop() {
         Serial.print("Result of the operation is: ");
         Serial.println(res);
     } else {
-        Serial.println(Bridge.get_error_code());
-        Serial.println(Bridge.get_error_message());
+        Serial.println(outcome.error.code);
+        Serial.println(outcome.error.traceback);
     }
 
     Bridge.notify("signal", 200);
