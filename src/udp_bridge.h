@@ -257,7 +257,7 @@ private:
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
-        RpcResult async_res = bridge->call(TCP_READ_METHOD, connection_id, size);
+        RpcResult async_res = bridge->call(UDP_READ_METHOD, connection_id, size);
         const bool ret = _connected && async_res.result(message);
 
         if (ret) {
