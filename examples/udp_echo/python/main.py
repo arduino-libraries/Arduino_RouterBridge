@@ -51,17 +51,17 @@ class UDPEchoServer:
         """Start the echo server"""
         try:
             # Create UDP socket
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            #self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            #self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
             # Bind to all interfaces
-            self.socket.bind(('0.0.0.0', self.port))
-            self.bridge_connection_id = Bridge.call("udp/connect", '0.0.0.0', self.port)
+            #self.socket.bind(('0.0.0.0', self.port))
+            self.bridge_connection_id = Bridge.call("udp/connect", '127.0.0.1', self.port)
 
             log("=" * 60)
             log("UDP Echo Server")
             log("=" * 60)
-            log(f"Listening on: 0.0.0.0:{self.port}")
+            log(f"Listening on: 127.0.0.1:{self.port}")
             log(f"Echo prefix: \"{self.prefix}\"")
             log(f"Buffer size: {self.buffer_size} bytes")
             log("=" * 60)
@@ -91,7 +91,9 @@ class UDPEchoServer:
         while self.running:
             try:
                 # Receive data
-                data, addr = self.socket.recvfrom(self.buffer_size)
+                # data, addr = self.socket.recvfrom(self.buffer_size)
+                data, host, port = Bridge.call("udp/read", self.bridge_connection_id, self.buffer_size)
+                addr = [host, port]
 
                 self.packets_received += 1
                 self.bytes_received += len(data)
@@ -115,9 +117,9 @@ class UDPEchoServer:
                     response = data
 
                 # Send echo back
-                sent = self.socket.sendto(response, addr)
-                res = Bridge.call("udp/write", self.bridge_connection_id, str(addr[0]), int(addr[1]), data)
-                log(f"Echo response: {res}\n")
+                # sent = self.socket.sendto(response, addr)
+                sent = Bridge.call("udp/write", self.bridge_connection_id, str(addr[0]), int(addr[1]), data)
+                log(f"Echo response: {sent}\n")
 
                 self.packets_sent += 1
                 self.bytes_sent += sent
