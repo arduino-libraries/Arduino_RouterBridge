@@ -106,6 +106,7 @@ class BridgeClass {
 
     struct k_mutex read_mutex{};
     struct k_mutex write_mutex{};
+    struct k_mutex bridge_mutex{};
 
     k_tid_t upd_tid{};
     k_thread_stack_t *upd_stack_area{};
@@ -119,17 +120,27 @@ public:
         serial_ptr = &serial;
     }
 
-    operator bool() const {
-        return started;
+    operator bool() {
+        return is_started();
+    }
+
+    bool is_started() {
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+        bool out = started;
+        k_mutex_unlock(&bridge_mutex);
+        return out;
     }
 
     // Initialize the bridge
     bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD) {
-        serial_ptr->begin(baud);
-        transport = new SerialTransport(*serial_ptr);
-
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
+        k_mutex_init(&bridge_mutex);
+
+        if (is_started()) return true;
+
+        serial_ptr->begin(baud);
+        transport = new SerialTransport(*serial_ptr);
 
         client = new RPCClient(*transport);
         server = new RPCServer(*transport);
@@ -142,32 +153,29 @@ public:
                                 UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
         k_thread_name_set(upd_tid, "bridge");
 
-        bool res;
-        call(RESET_METHOD).result(res);
-        if (res) {
-            started = true;
-        }
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+        bool res = false;
+        started = call(RESET_METHOD).result(res) && res;
+        k_mutex_unlock(&bridge_mutex);
         return res;
     }
 
     template<typename F>
     bool provide(const MsgPack::str_t& name, F&& func) {
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
         bool res;
-        if (!call(BIND_METHOD, name).result(res)) {
-            return false;
-        }
-        return server->bind(name, func);
+        bool out = call(BIND_METHOD, name).result(res) && res && server->bind(name, func);
+        k_mutex_unlock(&bridge_mutex);
+        return out;
     }
 
     template<typename F>
     bool provide_safe(const MsgPack::str_t& name, F&& func) {
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
         bool res;
-        if (!call(BIND_METHOD, name).result(res)) {
-            return false;
-        }
-
-        return server->bind(name, func, "__safe__");
-
+        bool out = call(BIND_METHOD, name).result(res) && res && server->bind(name, func, "__safe__");
+        k_mutex_unlock(&bridge_mutex);
+        return out;
     }
 
     void update() {

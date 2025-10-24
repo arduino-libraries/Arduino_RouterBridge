@@ -55,73 +55,55 @@ public:
 
     int connect(const char *host, uint16_t port) override {
 
-        if (_connected) return 0;
-
-        String hostname = host;
-
         k_mutex_lock(&client_mutex, K_FOREVER);
 
-        const bool resp = bridge->call(TCP_CONNECT_METHOD, hostname, port).result(connection_id);
-
-        if (!resp) {
-            _connected = false;
-            k_mutex_unlock(&client_mutex);
-            return -1;
-        }
-        _connected = true;
+        String hostname = host;
+        const bool ok = _connected || bridge->call(TCP_CONNECT_METHOD, hostname, port).result(connection_id);
+        _connected = ok;
 
         k_mutex_unlock(&client_mutex);
 
-        return 0;
+        return ok? 0 : -1;
     }
 
     int connectSSL(const char *host, uint16_t port, const char *ca_cert) {
 
-        if (_connected) return 0;
+        k_mutex_lock(&client_mutex, K_FOREVER);
 
         String hostname = host;
         String ca_cert_str = ca_cert;
 
-        k_mutex_lock(&client_mutex, K_FOREVER);
-
-        const bool resp = bridge->call(TCP_CONNECT_SSL_METHOD, hostname, port, ca_cert_str).result(connection_id);
-
-        if (!resp) {
-            _connected = false;
-            k_mutex_unlock(&client_mutex);
-            return -1;
-        }
-        _connected = true;
-
+        const bool ok = _connected || bridge->call(TCP_CONNECT_SSL_METHOD, hostname, port, ca_cert_str).result(connection_id);
+        _connected = ok;
         k_mutex_unlock(&client_mutex);
-        return 0;
+
+        return ok? 0 : -1;
     }
 
-    uint32_t getId() const {
-        return connection_id;
+    uint32_t getId() {
+        k_mutex_lock(&client_mutex, K_FOREVER);
+        const uint32_t out = connection_id;
+        k_mutex_unlock(&client_mutex);
+        return out;
     }
 
     size_t write(uint8_t c) override {
         return write(&c, 1);
     }
 
-    size_t write(const uint8_t *buf, size_t size) override {
+    size_t write(const uint8_t *buffer, size_t size) override {
 
-        if (!_connected) return 0;
+        if (!connected()) return 0;
 
         MsgPack::arr_t<uint8_t> payload;
 
         for (size_t i = 0; i < size; ++i) {
-            payload.push_back(buf[i]);
+            payload.push_back(buffer[i]);
         }
 
         size_t written;
-        const bool ret = bridge->call(TCP_WRITE_METHOD, connection_id, payload).result(written);
-        if (ret) {
-            return written;
-        }
-
-        return 0;
+        const bool ok = bridge->call(TCP_WRITE_METHOD, connection_id, payload).result(written);
+        return ok? written : 0;
     }
 
     int available() override {
@@ -151,12 +133,12 @@ public:
 
     int peek() override {
         k_mutex_lock(&client_mutex, K_FOREVER);
+        int out = -1;
         if (temp_buffer.available()) {
-            k_mutex_unlock(&client_mutex);
-            return temp_buffer.peek();
+            out = temp_buffer.peek();
         }
         k_mutex_unlock(&client_mutex);
-        return -1;
+        return out;
     }
 
     void flush() override {
@@ -170,37 +152,35 @@ public:
     void stop() override {
         k_mutex_lock(&client_mutex, K_FOREVER);
         String msg;
-        const bool resp = bridge->call(TCP_CLOSE_METHOD, connection_id).result(msg);
-        if (resp) {
-            _connected = false;
+        if (_connected) {
+            _connected = !bridge->call(TCP_CLOSE_METHOD, connection_id).result(msg);
         }
         k_mutex_unlock(&client_mutex);
     }
 
     uint8_t connected() override {
-        if (_connected) return 1;
-        return 0;
+        k_mutex_lock(&client_mutex, K_FOREVER);
+        const uint8_t out = _connected? 1 : 0;
+        k_mutex_unlock(&client_mutex);
+        return out;
     }
 
     operator bool() override {
         return available() || connected();
     }
 
-    //friend class BridgeTCPServer;
-
     using Print::write;
 
 private:
     void _read(size_t size) {
 
-        if (size == 0 || !_connected) return;
+        if (size == 0) return;
 
         k_mutex_lock(&client_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
         RpcResult async_rpc = bridge->call(TCP_READ_METHOD, connection_id, size);
-
-        const bool ret = async_rpc.result(message);
+        const bool ret = _connected && async_rpc.result(message);
 
         if (ret) {
             for (size_t i = 0; i < message.size(); ++i) {
