@@ -19,7 +19,6 @@ import sys
 import argparse
 import time
 from datetime import datetime
-from arduino.app_utils import *
 
 
 def log(msg):
@@ -44,19 +43,15 @@ class UDPEchoServer:
         self.bytes_sent = 0
         self.start_time = None
 
-        # Bridge
-        self.bridge_connection_id = 0
-
     def start(self):
         """Start the echo server"""
         try:
             # Create UDP socket
-            #self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            #self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
             # Bind to all interfaces
-            #self.socket.bind(('0.0.0.0', self.port))
-            self.bridge_connection_id = Bridge.call("udp/connect", '127.0.0.1', self.port)
+            self.socket.bind(('127.0.0.1', self.port))
 
             log("=" * 60)
             log("UDP Echo Server")
@@ -91,9 +86,8 @@ class UDPEchoServer:
         while self.running:
             try:
                 # Receive data
-                # data, addr = self.socket.recvfrom(self.buffer_size)
-                data, host, port = Bridge.call("udp/read", self.bridge_connection_id, self.buffer_size)
-                addr = [host, port]
+                data, addr = self.socket.recvfrom(self.buffer_size)
+                log(f"Attempt to read incoming messages")
 
                 self.packets_received += 1
                 self.bytes_received += len(data)
@@ -117,9 +111,7 @@ class UDPEchoServer:
                     response = data
 
                 # Send echo back
-                # sent = self.socket.sendto(response, addr)
-                sent = Bridge.call("udp/write", self.bridge_connection_id, str(addr[0]), int(addr[1]), data)
-                log(f"Echo response: {sent}\n")
+                sent = self.socket.sendto(response, addr)
 
                 self.packets_sent += 1
                 self.bytes_sent += sent
@@ -127,8 +119,10 @@ class UDPEchoServer:
                 log(f"  Echoed: {sent} bytes\n")
 
             except socket.timeout:
+                log("UDP socket timeout")
                 continue
             except KeyboardInterrupt:
+                log("Keyboard interrupt")
                 raise
             except Exception as e:
                 log(f"Error handling packet: {e}\n")
