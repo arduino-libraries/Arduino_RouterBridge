@@ -30,6 +30,7 @@ class BridgeUDP final: public UDP {
 
     BridgeClass* bridge;
     uint32_t connection_id{};
+    uint32_t read_timeout = 0;
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex udp_mutex{};
     bool _connected = false;
@@ -65,6 +66,12 @@ public:
         k_mutex_unlock(&udp_mutex);
 
         return ok? 1 : 0;
+    }
+
+    void setTimeout(const uint32_t ms) {
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+        read_timeout = ms;
+        k_mutex_unlock(&udp_mutex);
     }
 
     uint8_t beginMulticast(IPAddress ip, uint16_t port) override {
@@ -257,7 +264,7 @@ private:
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
-        RpcResult async_res = bridge->call(UDP_READ_METHOD, connection_id, size);
+        RpcResult async_res = bridge->call(UDP_READ_METHOD, connection_id, size, read_timeout);
         const bool ret = _connected && async_res.result(message);
 
         if (ret) {
