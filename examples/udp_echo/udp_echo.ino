@@ -49,8 +49,7 @@ void setup() {
     Monitor.print("... ");
     
     if (udp.begin(LOCAL_UDP_PORT)) {
-        Monitor.print("OK Connection id: ");
-        Monitor.print(udp.id());
+        Monitor.println("Connected");
     } else {
         Monitor.println("FAILED!");
         Monitor.println("ERROR: Cannot start UDP");
