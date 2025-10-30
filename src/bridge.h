@@ -32,9 +32,8 @@ void updateEntryPoint(void *, void *, void *);
 
 template<typename... Args>
 class RpcCall {
-
 public:
-    RpcError error;
+    RpcError error{GENERIC_ERR, "This call is not executed yet"};
 
     RpcCall(const MsgPack::str_t& m, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm, Args&&... args): method(m), client(c), read_mutex(rm), write_mutex(wm), callback_params(std::forward_as_tuple(std::forward<Args>(args)...)) {}
 
