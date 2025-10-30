@@ -7,8 +7,8 @@
     "url": "https://github.com/bcmi-labs/Arduino_RouterBridge"
   },
   "authors": {
-    "name": "BCMI-labs",
     "url": "https://github.com/bcmi-labs/Arduino_RouterBridge",
+    "name": "Arduino",
     "maintainer": true
   },
   "version": "0.2.2",
