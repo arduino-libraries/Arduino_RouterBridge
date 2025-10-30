@@ -4,11 +4,11 @@
   "description": "A RPC bridge for Arduino UNO Q boards",
   "repository": {
     "type": "git",
-    "url": "https://github.com/bcmi-labs/Arduino_RouterBridge"
+    "url": "https://github.com/arduino-libraries/Arduino_RouterBridge"
   },
   "authors": {
-    "url": "https://github.com/bcmi-labs/Arduino_RouterBridge",
     "name": "Arduino",
+    "url": "https://github.com/arduino-libraries/Arduino_RouterBridge",
     "maintainer": true
   },
   "version": "0.2.2",
@@ -17,6 +17,6 @@
   "platforms": "*",
   "dependencies":
   {
-    "name": "bcmi-labs/Arduino_RPClite"
+    "name": "arduino-libraries/Arduino_RPClite"
   }
 }
