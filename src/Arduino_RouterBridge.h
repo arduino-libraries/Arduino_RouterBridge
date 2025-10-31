@@ -18,5 +18,6 @@
 #include "tcp_client.h"
 #include "tcp_server.h"
 #include "hci.h"
+#include "wifi_bridge.h"
 
 #endif //ARDUINO_ROUTER_BRIDGE_H
