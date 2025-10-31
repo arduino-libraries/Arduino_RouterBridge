@@ -32,6 +32,7 @@ class BridgeTCPClient : public Client {
 
     BridgeClass* bridge;
     uint32_t connection_id{};
+    uint32_t read_timeout = 0;
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex client_mutex{};
     bool _connected = false;
@@ -47,6 +48,12 @@ public:
             return bridge->begin();
         }
         return true;
+    }
+
+    void setTimeout(const uint32_t ms) {
+        k_mutex_lock(&client_mutex, K_FOREVER);
+        read_timeout = ms;
+        k_mutex_unlock(&client_mutex);
     }
 
     int connect(IPAddress ip, uint16_t port) override {
