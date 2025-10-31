@@ -30,7 +30,7 @@ class BridgeMonitor: public Stream {
     BridgeClass* bridge;
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex monitor_mutex{};
-    bool is_connected = false;
+    bool _connected = false;
 
 public:
     explicit BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
@@ -40,15 +40,31 @@ public:
     bool begin(unsigned long _legacy_baud=0, uint16_t _legacy_config=0) {
         k_mutex_init(&monitor_mutex);
 
+        if (is_connected()) return true;
+
         bool bridge_started = (*bridge);
         if (!bridge_started) {
             bridge_started = bridge->begin();
         }
-        return bridge_started && bridge->call(MON_CONNECTED_METHOD).result(is_connected);
+
+        if (!bridge_started) return false;
+
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        bool out = false;
+        _connected = bridge->call(MON_CONNECTED_METHOD).result(out) && out;
+        k_mutex_unlock(&monitor_mutex);
+        return out;
     }
 
-    explicit operator bool() const {
-        return is_connected;
+    bool is_connected() {
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        bool out = _connected;
+        k_mutex_unlock(&monitor_mutex);
+        return out;
+    }
+
+    explicit operator bool() {
+        return is_connected();
     }
 
     int read() override {
@@ -78,12 +94,12 @@ public:
 
     int peek() override {
         k_mutex_lock(&monitor_mutex, K_FOREVER);
+        int out = -1;
         if (temp_buffer.available()) {
-            k_mutex_unlock(&monitor_mutex);
-            return temp_buffer.peek();
+            out = temp_buffer.peek();
         }
         k_mutex_unlock(&monitor_mutex);
-        return -1;
+        return out;
     }
 
     size_t write(uint8_t c) override {
@@ -100,20 +116,17 @@ public:
 
         size_t written;
         const bool ret = bridge->call(MON_WRITE_METHOD, send_buffer).result(written);
-        if (ret) {
-            return written;
-        }
 
-        return 0;
+        return ret? written : 0;
     }
 
     bool reset() {
         bool res;
-        bool ok = bridge->call(MON_RESET_METHOD).result(res);
-        if (ok && res) {
-            is_connected = false;
-        }
-        return (ok && res);
+        bool ok = bridge->call(MON_RESET_METHOD).result(res) && res;
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        _connected = !ok;
+        k_mutex_unlock(&monitor_mutex);
+        return ok;
     }
 
 private:
@@ -121,22 +134,23 @@ private:
 
         if (size == 0) return;
 
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+
         MsgPack::arr_t<uint8_t> message;
         RpcResult async_rpc = bridge->call(MON_READ_METHOD, size);
-
-        const bool ret = async_rpc.result(message);
+        const bool ret = _connected && async_rpc.result(message);
 
         if (ret) {
-            k_mutex_lock(&monitor_mutex, K_FOREVER);
             for (size_t i = 0; i < message.size(); ++i) {
                 temp_buffer.store_char(static_cast<char>(message[i]));
             }
-            k_mutex_unlock(&monitor_mutex);
         }
 
         // if (async_rpc.error.code > NO_ERR) {
-        //     is_connected = false;
+        //     _connected = false;
         // }
+
+        k_mutex_unlock(&monitor_mutex);
     }
 
 };
