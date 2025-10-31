@@ -137,7 +137,7 @@ private:
         k_mutex_lock(&monitor_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
-        RpcResult async_rpc = bridge->call(MON_READ_METHOD, size);
+        RpcCall async_rpc = bridge->call(MON_READ_METHOD, size);
         const bool ret = _connected && async_rpc.result(message);
 
         if (ret) {

@@ -179,7 +179,7 @@ private:
         k_mutex_lock(&client_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
-        RpcResult async_rpc = bridge->call(TCP_READ_METHOD, connection_id, size);
+        RpcCall async_rpc = bridge->call(TCP_READ_METHOD, connection_id, size);
         const bool ret = _connected && async_rpc.result(message);
 
         if (ret) {

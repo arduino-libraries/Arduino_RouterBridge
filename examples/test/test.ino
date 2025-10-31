@@ -60,7 +60,7 @@ void loop() {
     }
 
     float pow;
-    RpcResult async_res = Bridge.call("1_args_float_result", 2.0, 3.0);  // passing 2 args to a function expecting 1
+    RpcCall async_res = Bridge.call("1_args_float_result", 2.0, 3.0);  // passing 2 args to a function expecting 1
     if (async_res.result(pow)) {
       Monitor.println("Result of assignment and then result: "+String(pow)); // returns true, so the right result
     } else {
@@ -69,7 +69,7 @@ void loop() {
     }
 
     float div = 0;
-    RpcResult async_res1 = Bridge.call("2_args_float_result", 2.0);  // passing 1 arg when 2 are expected
+    RpcCall async_res1 = Bridge.call("2_args_float_result", 2.0);  // passing 1 arg when 2 are expected
     if (async_res1.result(div)) {
       Monitor.println("Result of assignment and then result: "+String(div)); // returns true, so the right result
     } else {
@@ -78,7 +78,7 @@ void loop() {
     }
 
     div = 0;
-    RpcResult async_res2 = Bridge.call("2_args_float_result", 2.0, "invalid");  // passing a wrong type arg
+    RpcCall async_res2 = Bridge.call("2_args_float_result", 2.0, "invalid");  // passing a wrong type arg
     if (async_res2.result(div)) {
       Monitor.println("Result of assignment and then result: "+String(div)); // returns true, so the right result
     } else {
@@ -87,7 +87,7 @@ void loop() {
     }
 
     x = false;
-    RpcResult async_res3 = Bridge.call("0_args_bool_result");
+    RpcCall async_res3 = Bridge.call("0_args_bool_result");
     if (async_res3.result(x)) {
         Monitor.println("Result of assignment and then result: "+String(x)); // returns true, so the right result
     } else {
@@ -96,7 +96,7 @@ void loop() {
 
     // Avoid the following:
     // the call happens in the destructor falling back to the "no_result" case (a type mismatch here)
-    RpcResult async_res4 = Bridge.call("0_args_bool_result");
+    RpcCall async_res4 = Bridge.call("0_args_bool_result");
 
     delay(1000);
 }
