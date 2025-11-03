@@ -6,11 +6,19 @@
     "type": "git",
     "url": "https://github.com/arduino-libraries/Arduino_RouterBridge"
   },
-  "authors": {
-    "name": "Arduino",
-    "url": "https://github.com/arduino-libraries/Arduino_RouterBridge",
-    "maintainer": true
-  },
+  "authors":
+  [
+    {
+      "name": "Arduino",
+      "url": "https://github.com/arduino-libraries/Arduino_RouterBridge",
+      "maintainer": true
+    },
+    {
+      "name": "Lucio Rossi",
+      "url": "l.rossi@arduino.cc",
+      "maintainer": true
+    }
+  ],
   "version": "0.2.2",
   "license": "MPL2.0",
   "frameworks": "arduino",
