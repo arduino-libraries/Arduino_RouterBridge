@@ -14,6 +14,8 @@
 #ifndef ROUTER_BRIDGE_H
 #define ROUTER_BRIDGE_H
 
+#define CTRL_GPIOG_13_ID            0
+
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
 //#define BRIDGE_ERROR "$/bridgeLog"
@@ -24,6 +26,8 @@
 #define DEFAULT_SERIAL_BAUD         115200
 
 #include <zephyr/kernel.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/gpio.h>
 #include <Arduino_RPClite.h>
 
 
@@ -138,6 +142,14 @@ public:
         k_mutex_init(&bridge_mutex);
 
         if (is_started()) return true;
+
+        const struct gpio_dt_spec mpu_boot_pin = GPIO_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), control_gpios, CTRL_GPIOG_13_ID);
+
+        gpio_pin_configure_dt(&mpu_boot_pin, GPIO_INPUT | GPIO_PULL_DOWN);
+        k_sleep(K_MSEC(200));
+        while (gpio_pin_get_dt(&mpu_boot_pin) == 0) {
+            k_sleep(K_MSEC(10));
+        }
 
         serial_ptr->begin(baud);
         transport = new SerialTransport(*serial_ptr);
