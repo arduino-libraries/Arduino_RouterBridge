@@ -149,7 +149,7 @@ public:
 extern BridgeClass Bridge;
 
 namespace RouterBridge {
-    BridgeHCI<> HCI(Bridge);
+    inline BridgeHCI<> HCI(Bridge);
 }
 
 // Make available in global namespace for backward compatibility
