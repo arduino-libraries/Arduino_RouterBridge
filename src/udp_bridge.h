@@ -18,12 +18,27 @@ This file is part of the Arduino_RouterBridge library.
 #define UDP_CONNECT_MULTI_METHOD    "udp/connectMulticast"
 #define UDP_CLOSE_METHOD            "udp/close"
 #define UDP_WRITE_METHOD            "udp/write"
+#define UDP_AWAIT_READ_METHOD       "udp/awaitRead"
 #define UDP_READ_METHOD             "udp/read"
 
 #include <api/Udp.h>
 
 #define DEFAULT_UDP_BUF_SIZE    4096
 
+
+struct BridgeUdpMeta {
+    MsgPack::str_t host;
+    uint16_t port;
+    uint16_t size;
+
+    BridgeUdpMeta() {
+        host = "";
+        port = 0;
+        size = 0;
+    }
+
+    MSGPACK_DEFINE(size, host, port); // -> [code, traceback]
+};
 
 template<size_t BufferSize=DEFAULT_UDP_BUF_SIZE>
 class BridgeUDP final: public UDP {
@@ -45,6 +60,7 @@ class BridgeUDP final: public UDP {
     IPAddress _remoteIP{}; // remote IP address for the incoming packet whilst it's being processed
     uint16_t _remotePort{}; // remote port for the incoming packet whilst it's being processed
     uint16_t _remaining{}; // remaining bytes of incoming packet yet to be processed
+    BridgeUdpMeta packet_meta{};
 
 public:
 
@@ -95,8 +111,8 @@ public:
     void stop() override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        String msg;
         if (_connected) {
+            String msg;
             _connected = !bridge->call(UDP_CLOSE_METHOD, connection_id).result(msg);
         }
 
@@ -156,16 +172,16 @@ public:
         while (_remaining) read();  // ensure previous packet is read
 
         int out = 0;
-        if (available() >= 8) {
-            uint8_t tmpBuf[8];
-            for (size_t i = 0; i < 8; ++i) {
-                tmpBuf[i] = temp_buffer.read_char();
+
+        RpcResult async_res = bridge->call(UDP_AWAIT_READ_METHOD, connection_id, read_timeout);
+        const bool ret = _connected && async_res.result(packet_meta);
+
+        if (ret) {
+            if (!_remoteIP.fromString(packet_meta.host)) {
+                _remoteIP.fromString("0.0.0.0");
             }
-            _remoteIP = tmpBuf;
-            _remotePort = tmpBuf[4];
-            _remotePort = (_remotePort << 8) + tmpBuf[5];
-            _remaining = tmpBuf[6];
-            _remaining = (_remaining << 8) + tmpBuf[7];
+            _remotePort = packet_meta.port;
+            _remaining = packet_meta.size;
             out = _remaining;
         }
 
