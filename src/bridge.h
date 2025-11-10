@@ -115,6 +115,7 @@ class BridgeClass {
     k_tid_t upd_tid{};
     k_thread_stack_t *upd_stack_area{};
     struct k_thread upd_thread_data{};
+    const struct gpio_dt_spec mpu_boot_pin = GPIO_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), control_gpios, CTRL_GPIOG_13_ID);
 
     bool started = false;
 
@@ -135,19 +136,18 @@ public:
         return out;
     }
 
+    bool ready() {
+        return gpio_pin_get_dt(&mpu_boot_pin) == 1;
+    }
+
     // Initialize the bridge
     bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD) {
-        k_mutex_init(&read_mutex);
-        k_mutex_init(&write_mutex);
-        k_mutex_init(&bridge_mutex);
+
+        init();
 
         if (is_started()) return true;
 
-        const struct gpio_dt_spec mpu_boot_pin = GPIO_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), control_gpios, CTRL_GPIOG_13_ID);
-
-        gpio_pin_configure_dt(&mpu_boot_pin, GPIO_INPUT | GPIO_PULL_DOWN);
-        k_sleep(K_MSEC(200));
-        while (gpio_pin_get_dt(&mpu_boot_pin) == 0) {
+        while (!ready()) {
             k_sleep(K_MSEC(10));
         }
 
@@ -239,6 +239,16 @@ public:
     }
 
 private:
+
+    void init() {
+
+        k_mutex_init(&read_mutex);
+        k_mutex_init(&write_mutex);
+        k_mutex_init(&bridge_mutex);
+
+        gpio_pin_configure_dt(&mpu_boot_pin, GPIO_INPUT | GPIO_PULL_DOWN);
+        k_sleep(K_MSEC(200));
+    }
 
     void update_safe() {
 
