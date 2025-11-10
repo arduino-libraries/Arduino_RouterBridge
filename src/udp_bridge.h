@@ -209,7 +209,11 @@ public:
     int read(unsigned char *buffer, size_t len) override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
         int i = 0;
-        while (_remaining && i < len && available()) {
+        while (_remaining && i < len) {
+            if (!temp_buffer.available() && !available()) {
+                k_msleep(1);
+                continue;
+            }
             buffer[i++] = temp_buffer.read_char();
             _remaining--;
         }
@@ -220,7 +224,11 @@ public:
     int read(char *buffer, size_t len) override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
         int i = 0;
-        while (_remaining && i < len && available()) {
+        while (_remaining && i < len) {
+            if (!temp_buffer.available() && !available()) {
+                k_msleep(1);
+                continue;
+            }
             buffer[i++] = static_cast<char>(temp_buffer.read_char());
             _remaining--;
         }
@@ -289,9 +297,9 @@ private:
             }
         }
 
-        if (async_res.error.code > NO_ERR) {
-            _connected = false;
-        }
+        // if (async_res.error.code > NO_ERR) {
+        //     _connected = false;
+        // }
 
         k_mutex_unlock(&udp_mutex);
     }
