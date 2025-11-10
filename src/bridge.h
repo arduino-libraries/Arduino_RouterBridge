@@ -142,13 +142,16 @@ public:
     }
 
     // Initialize the bridge
-    bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD) {
+    bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD, const uint32_t timeout=0) {
 
         init();
 
         if (is_started()) return true;
 
+        uint8_t start = k_uptime_get_32();
+
         while (!ready()) {
+            if (timeout>0 && (k_uptime_get_32()-start)>timeout) break;
             k_sleep(K_MSEC(10));
         }
 
