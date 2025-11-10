@@ -137,6 +137,7 @@ public:
     }
 
     bool ready() {
+        init();
         return gpio_pin_get_dt(&mpu_boot_pin) == 1;
     }
 
@@ -241,6 +242,11 @@ public:
 private:
 
     void init() {
+
+        static bool initialized = false;
+
+        if (initialized) return;
+        initialized = true;
 
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
