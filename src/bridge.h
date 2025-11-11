@@ -155,6 +155,8 @@ public:
             k_sleep(K_MSEC(10));
         }
 
+        k_sleep(K_MSEC(1000));
+
         serial_ptr->begin(baud);
         transport = new SerialTransport(*serial_ptr);
 
