@@ -193,7 +193,7 @@ public:
                 k_mutex_unlock(&write_mutex);
                 break;
             } else {
-                k_yield();
+                k_msleep(1);
             }
 
         }
@@ -272,8 +272,9 @@ inline void updateEntryPoint(void *, void *, void *){
     while (true) {
         if (Bridge) {
             Bridge.update();
+        } else {
+            k_msleep(100);
         }
-        k_yield();
     }
 }
 
