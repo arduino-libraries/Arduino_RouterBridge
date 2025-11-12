@@ -17,6 +17,7 @@
 #include "monitor.h"
 #include "tcp_client.h"
 #include "tcp_server.h"
+#include "hci.h"
 #include "udp_bridge.h"
 
 #endif //ARDUINO_ROUTER_BRIDGE_H
