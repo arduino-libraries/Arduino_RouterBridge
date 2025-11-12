@@ -45,7 +45,7 @@ class BridgeUDP final: public UDP {
 
     BridgeClass* bridge;
     uint32_t connection_id{};
-    uint32_t read_timeout = 0;
+    uint32_t read_timeout = 1;
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex udp_mutex{};
     bool _connected = false;
