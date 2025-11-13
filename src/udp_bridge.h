@@ -67,17 +67,19 @@ public:
     explicit BridgeUDP(BridgeClass& bridge): bridge(&bridge) {}
 
     uint8_t begin(uint16_t port) override {
-
         if (!init()) {
             return 0;
         }
 
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        String hostname = "0.0.0.0";
-        const bool ok = _connected || bridge->call(UDP_CONNECT_METHOD, hostname, port).result(connection_id);
-        _connected = ok;
-        if (_connected) _port = port;
+        bool ok = false;
+        if (!_connected) {
+            String hostname = "0.0.0.0";
+            ok = bridge->call(UDP_CONNECT_METHOD, hostname, port).result(connection_id);
+            _connected = ok;
+            if (_connected) _port = port;
+        }
 
         k_mutex_unlock(&udp_mutex);
 
@@ -91,17 +93,19 @@ public:
     }
 
     uint8_t beginMulticast(IPAddress ip, uint16_t port) override {
-
         if (!init()) {
             return 0;
         }
 
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        String hostname = ip.toString();
-        const bool ok = _connected || bridge->call(UDP_CONNECT_MULTI_METHOD, hostname, port).result(connection_id);
-        _connected = ok;
-        if (_connected) _port = port;
+        bool ok = false;
+        if (!_connected) {
+            String hostname = "0.0.0.0";
+            ok = bridge->call(UDP_CONNECT_METHOD, hostname, port).result(connection_id);
+            _connected = ok;
+            if (_connected) _port = port;
+        }
 
         k_mutex_unlock(&udp_mutex);
 
@@ -124,7 +128,6 @@ public:
     }
 
     int beginPacket(const char *host, uint16_t port) override {
-
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
         _targetHost = host;
@@ -150,7 +153,6 @@ public:
     }
 
     size_t write(const uint8_t *buffer, size_t size) override {
-
         if (!connected()) return 0;
 
         MsgPack::arr_t<uint8_t> payload;
@@ -282,7 +284,6 @@ private:
     }
 
     void _read(size_t size) {
-
         if (size == 0) return;
 
         k_mutex_lock(&udp_mutex, K_FOREVER);
