@@ -193,7 +193,7 @@ private:
         }
 
         MsgPack::arr_t<uint8_t> message;
-        RpcCall async_rpc = bridge->call(TCP_READ_METHOD, connection_id, size);
+        RpcCall async_rpc = bridge->call(TCP_READ_METHOD, connection_id, size, read_timeout);
         const bool ret = async_rpc.result(message);
 
         if (ret) {
