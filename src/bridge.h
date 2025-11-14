@@ -14,6 +14,8 @@
 #ifndef ROUTER_BRIDGE_H
 #define ROUTER_BRIDGE_H
 
+#define CTRL_GPIOG_13_ID            0
+
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
 //#define BRIDGE_ERROR "$/bridgeLog"
@@ -24,6 +26,8 @@
 #define DEFAULT_SERIAL_BAUD         115200
 
 #include <zephyr/kernel.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/gpio.h>
 #include <Arduino_RPClite.h>
 
 
@@ -111,6 +115,7 @@ class BridgeClass {
     k_tid_t upd_tid{};
     k_thread_stack_t *upd_stack_area{};
     struct k_thread upd_thread_data{};
+    const struct gpio_dt_spec mpu_boot_pin = GPIO_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), control_gpios, CTRL_GPIOG_13_ID);
 
     bool started = false;
 
@@ -131,13 +136,26 @@ public:
         return out;
     }
 
+    bool ready() {
+        init();
+        return gpio_pin_get_dt(&mpu_boot_pin) == 1;
+    }
+
     // Initialize the bridge
-    bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD) {
-        k_mutex_init(&read_mutex);
-        k_mutex_init(&write_mutex);
-        k_mutex_init(&bridge_mutex);
+    bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD, const uint32_t timeout=0) {
+
+        init();
 
         if (is_started()) return true;
+
+        uint8_t start = k_uptime_get_32();
+
+        while (!ready()) {
+            if (timeout>0 && (k_uptime_get_32()-start)>timeout) break;
+            k_sleep(K_MSEC(10));
+        }
+
+        k_sleep(K_MSEC(1000));
 
         serial_ptr->begin(baud);
         transport = new SerialTransport(*serial_ptr);
@@ -227,6 +245,21 @@ public:
     }
 
 private:
+
+    void init() {
+
+        static bool initialized = false;
+
+        if (initialized) return;
+        initialized = true;
+
+        k_mutex_init(&read_mutex);
+        k_mutex_init(&write_mutex);
+        k_mutex_init(&bridge_mutex);
+
+        gpio_pin_configure_dt(&mpu_boot_pin, GPIO_INPUT | GPIO_PULL_DOWN);
+        k_sleep(K_MSEC(200));
+    }
 
     void update_safe() {
 
