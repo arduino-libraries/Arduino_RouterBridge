@@ -109,7 +109,9 @@ public:
         }
 
         size_t written;
+        k_mutex_lock(&client_mutex, K_FOREVER);
         const bool ok = bridge->call(TCP_WRITE_METHOD, connection_id, payload).result(written);
+        k_mutex_unlock(&client_mutex);
         return ok? written : 0;
     }
 
@@ -185,9 +187,11 @@ private:
 
         k_mutex_lock(&client_mutex, K_FOREVER);
 
+        if (!_connected) return;
+
         MsgPack::arr_t<uint8_t> message;
         RpcResult async_rpc = bridge->call(TCP_READ_METHOD, connection_id, size);
-        const bool ret = _connected && async_rpc.result(message);
+        const bool ret = async_rpc.result(message);
 
         if (ret) {
             for (size_t i = 0; i < message.size(); ++i) {
