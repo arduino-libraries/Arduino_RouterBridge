@@ -17,9 +17,12 @@ This file is part of the Arduino_RouterBridge library.
 #define UDP_CONNECT_METHOD          "udp/connect"
 #define UDP_CONNECT_MULTI_METHOD    "udp/connectMulticast"
 #define UDP_CLOSE_METHOD            "udp/close"
+#define UDP_BEGIN_PACKET_METHOD     "udp/beginPacket"
 #define UDP_WRITE_METHOD            "udp/write"
-#define UDP_AWAIT_READ_METHOD       "udp/awaitRead"
+#define UDP_END_PACKET_METHOD       "udp/endPacket"
+#define UDP_AWAIT_PACKET_METHOD     "udp/awaitPacket"
 #define UDP_READ_METHOD             "udp/read"
+#define UDP_DROP_PACKET_METHOD      "udp/dropPacket"
 
 #include <api/Udp.h>
 
@@ -128,24 +131,37 @@ public:
     }
 
     int beginPacket(const char *host, uint16_t port) override {
+        if (!connected()) return 0;
+        bool ok = false;
+
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
         _targetHost = host;
         _targetPort = port;
+        bool res = false;
+        ok = bridge->call(UDP_BEGIN_PACKET_METHOD, connection_id, _targetHost, _targetPort).result(res) && res;
 
         k_mutex_unlock(&udp_mutex);
 
-        return 1;
+        return ok? 1 : 0;
     }
 
     int endPacket() override {
-        k_mutex_lock(&udp_mutex, K_FOREVER);
+        if (!connected()) return 0;
+        bool ok = false;
 
-        _targetHost = "";
-        _targetPort = 0;
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+        int transmitted = 0;
+        ok = bridge->call(UDP_END_PACKET_METHOD, connection_id).result(transmitted);
+
+        if (ok) {
+            _targetHost = "";
+            _targetPort = 0;
+        }
 
         k_mutex_unlock(&udp_mutex);
-        return 1;
+
+        return ok? 1 : 0;
     }
 
     size_t write(uint8_t c) override {
@@ -162,7 +178,10 @@ public:
         }
 
         size_t written;
-        const bool ok = bridge->call(UDP_WRITE_METHOD, connection_id, _targetHost, _targetPort, payload).result(written);
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+        const bool ok = bridge->call(UDP_WRITE_METHOD, connection_id, payload).result(written);
+        k_mutex_unlock(&udp_mutex);
+
         return ok? written : 0;
     }
 
@@ -171,12 +190,11 @@ public:
     int parsePacket() override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
-        while (_remaining) read();  // ensure previous packet is read
+        dropPacket();  // ensure previous packet is read
 
         int out = 0;
 
-        RpcResult async_res = bridge->call(UDP_AWAIT_READ_METHOD, connection_id, read_timeout);
-        const bool ret = _connected && async_res.result(packet_meta);
+        const bool ret = _connected && bridge->call(UDP_AWAIT_PACKET_METHOD, connection_id, read_timeout).result(packet_meta);
 
         if (ret) {
             if (!_remoteIP.fromString(packet_meta.host)) {
@@ -190,6 +208,24 @@ public:
         k_mutex_unlock(&udp_mutex);
 
         return out;
+    }
+
+    int dropPacket() {
+        if (!connected()) return 0;
+
+        bool ok=false;
+
+        k_mutex_lock(&udp_mutex, K_FOREVER);
+        if (_remaining > temp_buffer.available()) {
+            bool res = false;
+            ok = bridge->call(UDP_DROP_PACKET_METHOD, connection_id).result(res) && res;
+        }
+
+        _remaining = 0;
+        temp_buffer.clear();
+        k_mutex_unlock(&udp_mutex);
+
+        return ok? 1 : 0;
     }
 
     int available() override {
@@ -289,18 +325,13 @@ private:
         k_mutex_lock(&udp_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
-        RpcResult async_res = bridge->call(UDP_READ_METHOD, connection_id, size, read_timeout);
-        const bool ret = _connected && async_res.result(message);
+        const bool ret = _connected && bridge->call(UDP_READ_METHOD, connection_id, size, read_timeout).result(message);
 
         if (ret) {
             for (size_t i = 0; i < message.size(); ++i) {
                 temp_buffer.store_char(static_cast<char>(message[i]));
             }
         }
-
-        // if (async_res.error.code > NO_ERR) {
-        //     _connected = false;
-        // }
 
         k_mutex_unlock(&udp_mutex);
     }
