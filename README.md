@@ -5,8 +5,9 @@ In this repo it will be implemented an Arduino library wrapper for RPClite to be
 Including Arduino_RouterBridge.h gives the user access to a Bridge object that can be used both as a RPC client and/or server to execute and serve RPCs to/from the CPU Host running a GOLANG router.
 
 - The Bridge object is pre-defined on Serial1 and automatically initialized inside the main setup()
-- The Bridge.call method is non-blocking and returns a RpcResult async object
-- RpcResult class implements a blocking .result method that waits for the RPC response and returns true if the RPC returned with no errors
+- The Bridge.call method is non-blocking and returns a RpcCall async object
+- RpcCall class implements a blocking .result method that waits for the RPC response and returns true if the RPC returned with no errors
+- The RpcCall.result will return - by reference - the result value of that call *exactly once*. Subsequent calls to .result will return an error condition
 - The Bridge can provide callbacks to incoming RPC requests both in a thread-unsafe and thread-safe fashion (provide & provide_safe)
 - Thread-safe methods execution is granted in the main loop thread where update_safe is called. By design users cannot access .update_safe() freely
 - Thread-unsafe methods are served in an update callback, whose execution is granted in a separate thread. Nonetheless users can access .update() freely with caution
@@ -52,7 +53,7 @@ void loop() {
     };
 
     // Async call
-    RpcResult async_rpc = Bridge.call("add", 3.0, 4.5);
+    RpcCall async_rpc = Bridge.call("add", 3.0, 4.5);
     if (!async_rpc.result(sum)) {
         Monitor.println("Error calling method: add");
         Monitor.print("Error code: ");

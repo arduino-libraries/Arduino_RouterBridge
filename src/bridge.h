@@ -24,21 +24,27 @@
 #define DEFAULT_SERIAL_BAUD         115200
 
 #include <zephyr/kernel.h>
+#include <zephyr/sys/atomic.h>
 #include <Arduino_RPClite.h>
 
 
 void updateEntryPoint(void *, void *, void *);
 
 template<typename... Args>
-class RpcResult {
-
+class RpcCall {
 public:
-    RpcError error;
+    RpcError error{GENERIC_ERR, "This call is not executed yet"};
 
-    RpcResult(const MsgPack::str_t& m, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm, Args&&... args): method(m), client(c), read_mutex(rm), write_mutex(wm), callback_params(std::forward_as_tuple(std::forward<Args>(args)...)) {}
+    RpcCall(const MsgPack::str_t& m, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm, Args&&... args): method(m), client(c), read_mutex(rm), write_mutex(wm), callback_params(std::forward_as_tuple(std::forward<Args>(args)...)) {}
 
     template<typename RType> bool result(RType& result) {
-        if (_executed) return error.code == NO_ERR;
+
+        if (!atomic_cas(&_executed, 0, 1)){
+            // this thread lost the race
+            error.code = GENERIC_ERR;
+            error.traceback = "This call result is no longer available";
+            return false;
+        }
 
         while (true) {
             if (k_mutex_lock(write_mutex, K_MSEC(10)) == 0) {
@@ -69,7 +75,7 @@ public:
                 k_yield();
             }
         }
-        _executed = true;
+
         return error.code == NO_ERR;
     }
 
@@ -78,7 +84,7 @@ public:
         return result(nil);
     }
 
-    ~RpcResult(){
+    ~RpcCall(){
         result();
     }
 
@@ -88,7 +94,7 @@ public:
 
 private:
     uint32_t msg_id_wait{};
-    bool _executed = false;
+    atomic_t _executed = ATOMIC_INIT(0);;
 
     MsgPack::str_t method;
     RPCClient* client;
@@ -210,8 +216,8 @@ public:
     }
 
     template<typename... Args>
-    RpcResult<Args...> call(const MsgPack::str_t& method, Args&&... args) {
-       return RpcResult<Args...>(method, client, &read_mutex, &write_mutex, std::forward<Args>(args)...);
+    RpcCall<Args...> call(const MsgPack::str_t& method, Args&&... args) {
+       return RpcCall<Args...>(method, client, &read_mutex, &write_mutex, std::forward<Args>(args)...);
     }
 
     template<typename... Args>

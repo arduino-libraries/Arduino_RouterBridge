@@ -142,7 +142,7 @@ private:
         }
 
         MsgPack::arr_t<uint8_t> message;
-        RpcResult async_rpc = bridge->call(MON_READ_METHOD, size);
+        RpcCall async_rpc = bridge->call(MON_READ_METHOD, size);
         const bool ret = async_rpc.result(message);
 
         if (ret) {
