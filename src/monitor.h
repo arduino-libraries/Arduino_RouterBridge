@@ -137,7 +137,7 @@ private:
         k_mutex_lock(&monitor_mutex, K_FOREVER);
 
         if (!_connected) {
-            k_mutex_unlock(&client_mutex);
+            k_mutex_unlock(&monitor_mutex);
             return;
         }
 
