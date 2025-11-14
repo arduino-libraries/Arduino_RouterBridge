@@ -99,8 +99,11 @@ void sendNTPpacket(const char * address) {
 
   // all NTP fields have been given values, now
   // you can send a packet requesting a timestamp:
-  Udp.beginPacket(address, 123); // NTP requests are to port 123
-  Udp.write(packetBuffer, NTP_PACKET_SIZE);
-  Udp.endPacket();
+  if (Udp.beginPacket(address, 123)) {  // NTP requests are to port 123
+    Udp.write(packetBuffer, NTP_PACKET_SIZE);
+    Udp.endPacket();
+  } else {
+    Monitor.println("Failed to send NTP request.");
+  }
 }
 
