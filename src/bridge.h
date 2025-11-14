@@ -281,7 +281,7 @@ private:
     BridgeClassUpdater() = delete; // prevents instantiation
 };
 
-BridgeClass Bridge(Serial1);
+inline BridgeClass Bridge(Serial1);
 
 inline void updateEntryPoint(void *, void *, void *){
     while (true) {
@@ -297,7 +297,7 @@ static void safeUpdate(){
 }
 
 // leave as is
-void __loopHook(void){
+void __attribute__((weak)) __loopHook(void){
     k_yield();
     safeUpdate();
 }
