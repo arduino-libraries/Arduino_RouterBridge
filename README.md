@@ -57,9 +57,9 @@ void loop() {
     if (!async_rpc.result(sum)) {
         Monitor.println("Error calling method: add");
         Monitor.print("Error code: ");
-        Monitor.println(async_rpc.error.code);
+        Monitor.println(async_rpc.getErrorCode());
         Monitor.print("Error message: ");
-        Monitor.println(async_rpc.error.traceback);
+        Monitor.println(async_rpc.getErrorMessage());
     }
 
     // Implicit boolean cast. Use with caution as in this case the call is indeed

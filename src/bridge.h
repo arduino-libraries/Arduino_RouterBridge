@@ -27,22 +27,56 @@
 #include <zephyr/sys/atomic.h>
 #include <Arduino_RPClite.h>
 
+#include <utility>
+
 
 void updateEntryPoint(void *, void *, void *);
 
 template<typename... Args>
 class RpcCall {
-public:
-    RpcError error{GENERIC_ERR, "This call is not executed yet"};
 
-    RpcCall(const MsgPack::str_t& m, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm, Args&&... args): method(m), client(c), read_mutex(rm), write_mutex(wm), callback_params(std::forward_as_tuple(std::forward<Args>(args)...)) {}
+    RpcError error;
+
+    void setError(int code, MsgPack::str_t text) {
+        k_mutex_lock(&call_mutex, K_FOREVER);
+        error.code = code;
+        error.traceback = std::move(text);
+        k_mutex_unlock(&call_mutex);
+    }
+
+public:
+
+    RpcCall(const MsgPack::str_t& m, RPCClient* c, struct k_mutex* rm, struct k_mutex* wm, Args&&... args): method(m), client(c), read_mutex(rm), write_mutex(wm), callback_params(std::forward_as_tuple(std::forward<Args>(args)...)) {
+        k_mutex_init(&call_mutex);
+        setError(GENERIC_ERR, "This call is not yet executed");
+    }
+
+    bool isError() {
+        k_mutex_lock(&call_mutex, K_FOREVER);
+        const bool out = error.code > NO_ERR;
+        k_mutex_unlock(&call_mutex);
+        return out;
+    }
+
+    int getErrorCode() {
+        k_mutex_lock(&call_mutex, K_FOREVER);
+        const int out = error.code;
+        k_mutex_unlock(&call_mutex);
+        return out;
+    }
+
+    MsgPack::str_t getErrorMessage() {
+        k_mutex_lock(&call_mutex, K_FOREVER);
+        MsgPack::str_t out = error.traceback;
+        k_mutex_unlock(&call_mutex);
+        return out;
+    }
 
     template<typename RType> bool result(RType& result) {
 
         if (!atomic_cas(&_executed, 0, 1)){
             // this thread lost the race
-            error.code = GENERIC_ERR;
-            error.traceback = "This call result is no longer available";
+            setError(GENERIC_ERR, "This call is no longer available");
             return false;
         }
 
@@ -60,13 +94,15 @@ public:
 
         while(true) {
             if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
-                if (client->get_response(msg_id_wait, result, error)) {
+                RpcError temp_err;
+                if (client->get_response(msg_id_wait, result, temp_err)) {
                     k_mutex_unlock(read_mutex);
                     // if (error.code == PARSING_ERR) {
                     //     k_mutex_lock(write_mutex, K_FOREVER);
                     //     client->notify(BRIDGE_ERROR, error.traceback);
                     //     k_mutex_unlock(write_mutex);
                     // }
+                    setError(temp_err.code, temp_err.traceback);
                     break;
                 }
                 k_mutex_unlock(read_mutex);
@@ -76,7 +112,7 @@ public:
             }
         }
 
-        return error.code == NO_ERR;
+        return !isError();
     }
 
     bool result() {
@@ -100,6 +136,7 @@ private:
     RPCClient* client;
     struct k_mutex* read_mutex;
     struct k_mutex* write_mutex;
+    struct k_mutex call_mutex{};
     std::tuple<Args...> callback_params;
 };
 

@@ -202,7 +202,7 @@ private:
             }
         }
 
-        if (async_rpc.error.code > NO_ERR) {
+        if (async_rpc.getErrorCode() > NO_ERR) {
             _connected = false;
         }
 

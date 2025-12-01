@@ -59,8 +59,8 @@ void loop() {
         Serial.print("Result of the operation is: ");
         Serial.println(res);
     } else {
-        Serial.println(outcome.error.code);
-        Serial.println(outcome.error.traceback);
+        Serial.println(outcome.getErrorCode());
+        Serial.println(outcome.getErrorMessage());
     }
 
     Bridge.notify("signal", 200);
