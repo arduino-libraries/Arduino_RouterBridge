@@ -31,6 +31,7 @@ class BridgeMonitor: public Stream {
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex monitor_mutex{};
     bool _connected = false;
+    bool _debug_mode = false;
 
 public:
     explicit BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
@@ -54,6 +55,20 @@ public:
         _connected = bridge->call(MON_CONNECTED_METHOD).result(out) && out;
         k_mutex_unlock(&monitor_mutex);
         return out;
+    }
+
+    void setDebugMode(bool debug_mode) {
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        _debug_mode = debug_mode;
+        k_mutex_unlock(&monitor_mutex);
+    }
+
+    bool debugMode() {
+        bool debug_mode;
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        debug_mode = _debug_mode;
+        k_mutex_unlock(&monitor_mutex);
+        return debug_mode;
     }
 
     bool is_connected() {
@@ -114,10 +129,14 @@ public:
             send_buffer += static_cast<char>(buffer[i]);
         }
 
-        size_t written;
-        const bool ret = bridge->call(MON_WRITE_METHOD, send_buffer).result(written);
+        size_t written = 0;
+        if (debugMode()) {
+            bridge->call(MON_WRITE_METHOD, send_buffer).result(written);
+        } else {
+            bridge->notify(MON_WRITE_METHOD, send_buffer);
+        }
 
-        return ret? written : 0;
+        return written;
     }
 
     bool reset() {
