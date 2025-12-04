@@ -53,10 +53,12 @@ public:
     bool begin(const char *device = "hci0") {
         k_mutex_init(&hci_mutex);
 
+        k_mutex_lock(&hci_mutex, K_FOREVER);
         // Pre-allocate recv buffer to avoid allocations during recv calls
         recv_buffer.reserve(BufferSize);
 
         if (!(*bridge) && !bridge->begin()) {
+            k_mutex_unlock(&hci_mutex);
             return false;
         }
 
@@ -65,15 +67,17 @@ public:
             initialized = result;
         }
 
-        return initialized;
+        k_mutex_unlock(&hci_mutex);
+        return result;
     }
 
     void end() {
+        k_mutex_lock(&hci_mutex, K_FOREVER);
+
         if (!initialized) {
+            k_mutex_unlock(&hci_mutex);
             return;
         }
-
-        k_mutex_lock(&hci_mutex, K_FOREVER);
 
         bool result;
         bridge->call(HCI_CLOSE_METHOD).result(result);
@@ -83,15 +87,19 @@ public:
     }
 
     explicit operator bool() const {
-        return initialized;
+        k_mutex_lock(&hci_mutex, K_FOREVER);
+        bool out = initialized;
+        k_mutex_unlock(&hci_mutex);
+        return out;
     }
 
     int send(const uint8_t *buffer, size_t size) {
+        k_mutex_lock(&hci_mutex, K_FOREVER);
+
         if (!initialized) {
+            k_mutex_unlock(&hci_mutex);
             return -1;
         }
-
-        k_mutex_lock(&hci_mutex, K_FOREVER);
 
         BinaryView send_buffer(buffer, size);
         size_t bytes_sent;
@@ -106,11 +114,12 @@ public:
     }
 
     int recv(uint8_t *buffer, size_t max_size) {
+        k_mutex_lock(&hci_mutex, K_FOREVER);
+
         if (!initialized) {
+            k_mutex_unlock(&hci_mutex);
             return -1;
         }
-
-        k_mutex_lock(&hci_mutex, K_FOREVER);
 
         recv_buffer.clear();
         bool ret = bridge->call(HCI_RECV_METHOD, max_size).result(recv_buffer);
@@ -130,11 +139,13 @@ public:
     }
 
     int available() {
-        if (!initialized) {
-            return 0;
-        }
 
         k_mutex_lock(&hci_mutex, K_FOREVER);
+
+        if (!initialized) {
+            k_mutex_unlock(&hci_mutex);
+            return 0;
+        }
 
         bool result;
         bool ret = bridge->call(HCI_AVAIL_METHOD).result(result);

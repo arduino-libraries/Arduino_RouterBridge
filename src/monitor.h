@@ -42,14 +42,17 @@ public:
 
         if (is_connected()) return true;
 
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
         bool bridge_started = (*bridge);
         if (!bridge_started) {
             bridge_started = bridge->begin();
         }
 
-        if (!bridge_started) return false;
+        if (!bridge_started) {
+            k_mutex_unlock(&monitor_mutex);
+            return false;
+        }
 
-        k_mutex_lock(&monitor_mutex, K_FOREVER);
         bool out = false;
         _connected = bridge->call(MON_CONNECTED_METHOD).result(out) && out;
         k_mutex_unlock(&monitor_mutex);
@@ -121,9 +124,9 @@ public:
     }
 
     bool reset() {
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
         bool res;
         bool ok = bridge->call(MON_RESET_METHOD).result(res) && res;
-        k_mutex_lock(&monitor_mutex, K_FOREVER);
         _connected = !ok;
         k_mutex_unlock(&monitor_mutex);
         return ok;

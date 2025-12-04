@@ -182,6 +182,8 @@ public:
 
         if (is_started()) return true;
 
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+
         serial_ptr->begin(baud);
         transport = new SerialTransport(*serial_ptr);
 
@@ -196,7 +198,6 @@ public:
                                 UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
         k_thread_name_set(upd_tid, "bridge");
 
-        k_mutex_lock(&bridge_mutex, K_FOREVER);
         bool res = false;
         started = call(RESET_METHOD).result(res) && res;
         k_mutex_unlock(&bridge_mutex);
