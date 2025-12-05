@@ -22,6 +22,8 @@
 #define UPDATE_THREAD_PRIORITY      5
 
 #define DEFAULT_SERIAL_BAUD         115200
+#define GREENLIGHT_METHOD "$/start"
+#define BEGIN_TIMEOUT_MS               5000
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
@@ -31,6 +33,13 @@
 
 
 void updateEntryPoint(void *, void *, void *);
+
+k_sem cleared_sem;
+
+inline void greenLight() {
+    Serial.println("Green Light");
+    //k_sem_give(&cleared_sem);
+}
 
 template<typename... Args>
 class RpcCall {
@@ -179,16 +188,23 @@ public:
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
         k_mutex_init(&bridge_mutex);
+        k_sem_init(&cleared_sem, 0, 1);     //
 
         if (is_started()) return true;
 
-        k_mutex_lock(&bridge_mutex, K_FOREVER);
 
         serial_ptr->begin(baud);
         transport = new SerialTransport(*serial_ptr);
 
         client = new RPCClient(*transport);
         server = new RPCServer(*transport);
+
+        // The service method greenLight is not registered to the MPU, but it is provided for signaling
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+        started = server->bind(GREENLIGHT_METHOD, greenLight);
+        if (!started) Serial.println("Failed to bind greenlight");
+
+        k_mutex_unlock(&bridge_mutex);
 
         upd_stack_area = k_thread_stack_alloc(UPDATE_THREAD_STACK_SIZE, 0);
         upd_tid = k_thread_create(&upd_thread_data, upd_stack_area,
@@ -198,6 +214,17 @@ public:
                                 UPDATE_THREAD_PRIORITY, 0, K_NO_WAIT);
         k_thread_name_set(upd_tid, "bridge");
 
+        // This should not be mutexed and go before the call to RESET_METHOD
+        // BEGIN_TIMEOUT_MS ensures compatibility with older versions that do not use signaling
+        Serial.println("Waiting to be cleared");
+        if (k_sem_take(&cleared_sem, K_MSEC(BEGIN_TIMEOUT_MS)) != 0) {
+            Serial.println("Semaphore timeout");
+        } else {
+            // wait to be cleared by the other side
+            Serial.println("Cleared->Resetting");
+        }
+
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
         bool res = false;
         started = call(RESET_METHOD).result(res) && res;
         k_mutex_unlock(&bridge_mutex);
@@ -235,6 +262,13 @@ public:
         }
 
         k_mutex_unlock(&read_mutex);
+
+        Serial.print("Processing: ");
+        for (size_t i = 0; i < req.size; i++) {
+            Serial.print(" 0x");
+            Serial.print(req.buffer[i], HEX);
+        }
+        Serial.println("");
 
         server->process_request(req);
 
