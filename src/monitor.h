@@ -31,6 +31,7 @@ class BridgeMonitor: public Stream {
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex monitor_mutex{};
     bool _connected = false;
+    bool _compatibility_mode;
 
 public:
     explicit BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
@@ -46,16 +47,21 @@ public:
 
         if (is_connected()) return true;
 
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
         bool bridge_started = (*bridge);
         if (!bridge_started) {
             bridge_started = bridge->begin();
         }
 
-        if (!bridge_started) return false;
+        if (!bridge_started) {
+            k_mutex_unlock(&monitor_mutex);
+            return false;
+        }
 
-        k_mutex_lock(&monitor_mutex, K_FOREVER);
         bool out = false;
         _connected = bridge->call(MON_CONNECTED_METHOD).result(out) && out;
+        MsgPack::str_t ver;
+        _compatibility_mode = !bridge->call(GET_VERSION_METHOD).result(ver);
         k_mutex_unlock(&monitor_mutex);
         return out;
     }
@@ -118,16 +124,21 @@ public:
             send_buffer += static_cast<char>(buffer[i]);
         }
 
-        size_t written;
-        const bool ret = bridge->call(MON_WRITE_METHOD, send_buffer).result(written);
+        size_t written = 0;
 
-        return ret? written : 0;
+        if (_compatibility_mode) {
+            bridge->call(MON_WRITE_METHOD, send_buffer).result(written);
+        } else {
+            bridge->notify(MON_WRITE_METHOD, send_buffer);
+        }
+
+        return written;
     }
 
     bool reset() {
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
         bool res;
         bool ok = bridge->call(MON_RESET_METHOD).result(res) && res;
-        k_mutex_lock(&monitor_mutex, K_FOREVER);
         _connected = !ok;
         k_mutex_unlock(&monitor_mutex);
         return ok;
@@ -155,7 +166,7 @@ private:
             }
         }
 
-        // if (async_rpc.error.code > NO_ERR) {
+        // if (async_rpc.getErrorCode() > NO_ERR) {
         //     _connected = false;
         // }
 

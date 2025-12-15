@@ -64,8 +64,8 @@ void loop() {
     if (async_res.result(pow)) {
       Monitor.println("Result of assignment and then result: "+String(pow)); // returns true, so the right result
     } else {
-      Monitor.println("Error code: "+String(async_res.error.code));
-      Monitor.println("Error message: "+async_res.error.traceback);
+      Monitor.println("Error code: "+String(async_res.getErrorCode()));
+      Monitor.println("Error message: "+async_res.getErrorMessage());
     }
 
     float div = 0;
@@ -73,8 +73,8 @@ void loop() {
     if (async_res1.result(div)) {
       Monitor.println("Result of assignment and then result: "+String(div)); // returns true, so the right result
     } else {
-      Monitor.println("Error code: "+String(async_res1.error.code));
-      Monitor.println("Error message: "+async_res1.error.traceback);
+      Monitor.println("Error code: "+String(async_res1.getErrorCode()));
+      Monitor.println("Error message: "+async_res1.getErrorMessage());
     }
 
     div = 0;
@@ -82,8 +82,8 @@ void loop() {
     if (async_res2.result(div)) {
       Monitor.println("Result of assignment and then result: "+String(div)); // returns true, so the right result
     } else {
-      Monitor.println("Error code: "+String(async_res2.error.code));
-      Monitor.println("Error message: "+async_res2.error.traceback);
+      Monitor.println("Error code: "+String(async_res2.getErrorCode()));
+      Monitor.println("Error message: "+async_res2.getErrorMessage());
     }
 
     x = false;
@@ -91,7 +91,7 @@ void loop() {
     if (async_res3.result(x)) {
         Monitor.println("Result of assignment and then result: "+String(x)); // returns true, so the right result
     } else {
-        Monitor.println("Error expecting bool result: "+String(async_res3.error.code));
+        Monitor.println("Error expecting bool result: "+String(async_res3.getErrorCode()));
     }
 
     // Avoid the following:

@@ -193,8 +193,18 @@ private:
         }
 
         MsgPack::arr_t<uint8_t> message;
-        RpcCall async_rpc = bridge->call(TCP_READ_METHOD, connection_id, size, read_timeout);
-        const bool ret = async_rpc.result(message);
+        bool ret;
+        int err;
+
+        if (read_timeout > 0) {
+            RpcCall async_rpc_timeout = bridge->call(TCP_READ_METHOD, connection_id, size, read_timeout);
+            ret = async_rpc_timeout.result(message);
+            err = async_rpc_timeout.getErrorCode();
+        } else {
+            RpcCall async_rpc = bridge->call(TCP_READ_METHOD, connection_id, size);
+            ret = async_rpc.result(message);
+            err = async_rpc.getErrorCode();
+        }
 
         if (ret) {
             for (size_t i = 0; i < message.size(); ++i) {
@@ -202,7 +212,7 @@ private:
             }
         }
 
-        if (async_rpc.error.code > NO_ERR) {
+        if (err > NO_ERR) {
             _connected = false;
         }
 
