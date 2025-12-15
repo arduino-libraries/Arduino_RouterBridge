@@ -38,6 +38,10 @@ public:
     using Print::write;
 
     bool begin(unsigned long _legacy_baud=0, uint16_t _legacy_config=0) {
+	// unused parameters for compatibility with Stream
+	(void)_legacy_baud;
+	(void)_legacy_config;
+
         k_mutex_init(&monitor_mutex);
 
         if (is_connected()) return true;
@@ -68,19 +72,19 @@ public:
     }
 
     int read() override {
-        uint8_t c;
+        uint8_t c = 0;
         read(&c, 1);
         return c;
     }
 
     int read(uint8_t* buffer, size_t size) {
         k_mutex_lock(&monitor_mutex, K_FOREVER);
-        int i = 0;
+        size_t i = 0;
         while (temp_buffer.available() && i < size) {
             buffer[i++] = temp_buffer.read_char();
         }
         k_mutex_unlock(&monitor_mutex);
-        return i;
+        return (int)i;
     }
 
     int available() override {

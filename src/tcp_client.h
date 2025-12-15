@@ -132,12 +132,12 @@ public:
 
     int read(uint8_t *buf, size_t size) override {
         k_mutex_lock(&client_mutex, K_FOREVER);
-        int i = 0;
+        size_t i = 0;
         while (temp_buffer.available() && i < size) {
             buf[i++] = temp_buffer.read_char();
         }
         k_mutex_unlock(&client_mutex);
-        return i;
+        return (int)i;
     }
 
     int peek() override {
