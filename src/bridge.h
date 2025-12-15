@@ -159,8 +159,6 @@ class BridgeClass {
 
     bool started = false;
 
-    MsgPack::str_t router_ver;
-
 public:
 
     explicit BridgeClass(HardwareSerial& serial) {

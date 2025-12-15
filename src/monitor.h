@@ -31,7 +31,7 @@ class BridgeMonitor: public Stream {
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex monitor_mutex{};
     bool _connected = false;
-    bool _compatibility_mode;
+    bool _compatibility_mode = true;
 
 public:
     explicit BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
@@ -61,7 +61,7 @@ public:
         bool out = false;
         _connected = bridge->call(MON_CONNECTED_METHOD).result(out) && out;
         MsgPack::str_t ver;
-        _compatibility_mode = !bridge->call(GET_VERSION_METHOD).result(ver);
+        _compatibility_mode = !bridge->getRouterVersion(ver);
         k_mutex_unlock(&monitor_mutex);
         return out;
     }
