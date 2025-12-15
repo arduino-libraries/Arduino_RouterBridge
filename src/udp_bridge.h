@@ -96,6 +96,8 @@ public:
     }
 
     uint8_t beginMulticast(IPAddress ip, uint16_t port) override {
+        (void)ip; // unused argument
+
         if (!init()) {
             return 0;
         }
@@ -246,7 +248,7 @@ public:
     // reading stops when the UDP package has been read completely (_remaining = 0)
     int read(unsigned char *buffer, size_t len) override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
-        int i = 0;
+       	size_t i = 0;
         while (_remaining && i < len) {
             if (!temp_buffer.available() && !available()) {
                 k_msleep(1);
@@ -256,12 +258,12 @@ public:
             _remaining--;
         }
         k_mutex_unlock(&udp_mutex);
-        return i;
+        return (int)i;
     }
 
     int read(char *buffer, size_t len) override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
-        int i = 0;
+        size_t i = 0;
         while (_remaining && i < len) {
             if (!temp_buffer.available() && !available()) {
                 k_msleep(1);
@@ -271,7 +273,7 @@ public:
             _remaining--;
         }
         k_mutex_unlock(&udp_mutex);
-        return i;
+        return (int)i;
     }
 
     int peek() override {
