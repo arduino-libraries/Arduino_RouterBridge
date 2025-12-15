@@ -14,7 +14,7 @@
  */
 
 #include <Arduino.h>
-#include "src/Arduino_RouterBridge.h"
+#include "Arduino_RouterBridge.h"
 
 // Configuration
 #define LOCAL_UDP_PORT 8888           // Local port to listen on
