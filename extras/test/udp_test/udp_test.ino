@@ -6,7 +6,7 @@
  */
 
 #include <Arduino.h>
-#include "src/Arduino_RouterBridge.h"
+#include "Arduino_RouterBridge.h"
 
 // Test configuration
 #define TEST_UDP_PORT 8888

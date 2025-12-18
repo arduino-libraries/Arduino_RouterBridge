@@ -16,6 +16,8 @@
 
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
+#define GET_VERSION_METHOD "$/version"
+
 //#define BRIDGE_ERROR "$/bridgeLog"
 
 #define UPDATE_THREAD_STACK_SIZE    500
@@ -229,6 +231,10 @@ public:
         started = call(RESET_METHOD).result(res) && res;
         k_mutex_unlock(&bridge_mutex);
         return res;
+    }
+
+    bool getRouterVersion(MsgPack::str_t& version) {
+        return call(GET_VERSION_METHOD).result(version);
     }
 
     template<typename F>

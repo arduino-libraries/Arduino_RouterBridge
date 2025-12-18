@@ -7,6 +7,8 @@
 
 
 void rpc_thread_entry(void *p1, void *p2, void *p3) {
+    (void)p3; // unused argument
+
     RpcCall<MsgPack::str_t> *call  = reinterpret_cast<RpcCall<MsgPack::str_t>*>(p1);
     struct k_mutex *mtx = reinterpret_cast<struct k_mutex*>(p2);
 

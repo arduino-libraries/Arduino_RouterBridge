@@ -31,6 +31,7 @@ class BridgeMonitor: public Stream {
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex monitor_mutex{};
     bool _connected = false;
+    bool _compatibility_mode = true;
 
 public:
     explicit BridgeMonitor(BridgeClass& bridge): bridge(&bridge) {}
@@ -38,6 +39,10 @@ public:
     using Print::write;
 
     bool begin(unsigned long _legacy_baud=0, uint16_t _legacy_config=0) {
+	// unused parameters for compatibility with Stream
+	(void)_legacy_baud;
+	(void)_legacy_config;
+
         k_mutex_init(&monitor_mutex);
 
         if (is_connected()) return true;
@@ -55,6 +60,8 @@ public:
 
         bool out = false;
         _connected = bridge->call(MON_CONNECTED_METHOD).result(out) && out;
+        MsgPack::str_t ver;
+        _compatibility_mode = !bridge->getRouterVersion(ver);
         k_mutex_unlock(&monitor_mutex);
         return out;
     }
@@ -71,19 +78,19 @@ public:
     }
 
     int read() override {
-        uint8_t c;
+        uint8_t c = 0;
         read(&c, 1);
         return c;
     }
 
     int read(uint8_t* buffer, size_t size) {
         k_mutex_lock(&monitor_mutex, K_FOREVER);
-        int i = 0;
+        size_t i = 0;
         while (temp_buffer.available() && i < size) {
             buffer[i++] = temp_buffer.read_char();
         }
         k_mutex_unlock(&monitor_mutex);
-        return i;
+        return (int)i;
     }
 
     int available() override {
@@ -117,10 +124,15 @@ public:
             send_buffer += static_cast<char>(buffer[i]);
         }
 
-        size_t written;
-        const bool ret = bridge->call(MON_WRITE_METHOD, send_buffer).result(written);
+        size_t written = 0;
 
-        return ret? written : 0;
+        if (_compatibility_mode) {
+            bridge->call(MON_WRITE_METHOD, send_buffer).result(written);
+        } else {
+            bridge->notify(MON_WRITE_METHOD, send_buffer);
+        }
+
+        return written;
     }
 
     bool reset() {
