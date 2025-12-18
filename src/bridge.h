@@ -40,7 +40,7 @@ k_sem cleared_sem;
 
 inline void greenLight() {
     Serial.println("Green Light");
-    //k_sem_give(&cleared_sem);
+    k_sem_give(&cleared_sem);
 }
 
 template<typename... Args>
