@@ -17,6 +17,7 @@
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
 #define GET_VERSION_METHOD "$/version"
+#define SET_BUF_METHOD "$/buff"
 
 //#define BRIDGE_ERROR "$/bridgeLog"
 
@@ -24,6 +25,7 @@
 #define UPDATE_THREAD_PRIORITY      5
 
 #define DEFAULT_SERIAL_BAUD         115200
+#define BRIDGE_RPC_BUFFER_SIZE      DEFAULT_RPC_BUFFER_SIZE
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
@@ -202,6 +204,7 @@ public:
 
         bool res = false;
         started = call(RESET_METHOD).result(res) && res;
+        notify(SET_BUF_METHOD, BRIDGE_RPC_BUFFER_SIZE);     // no effect if Router is not exposing $/buff
         k_mutex_unlock(&bridge_mutex);
         return res;
     }
@@ -233,7 +236,7 @@ public:
         // Lock read mutex
         if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
 
-        RPCRequest<> req;
+        RPCRequest<BRIDGE_RPC_BUFFER_SIZE> req;
         if (!server->get_rpc(req)) {
             k_mutex_unlock(&read_mutex);
             k_msleep(1);
@@ -283,7 +286,7 @@ private:
         // Lock read mutex
         if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
 
-        RPCRequest<> req;
+        RPCRequest<BRIDGE_RPC_BUFFER_SIZE> req;
         if (!server->get_rpc(req, "__safe__")) {
             k_mutex_unlock(&read_mutex);
             k_msleep(1);
