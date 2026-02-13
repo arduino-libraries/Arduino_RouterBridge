@@ -17,7 +17,7 @@
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
 #define GET_VERSION_METHOD "$/version"
-#define SET_BUF_METHOD "$/buff"
+#define SET_BUF_METHOD "$/maxbuffsize"
 
 //#define BRIDGE_ERROR "$/bridgeLog"
 
@@ -204,7 +204,7 @@ public:
 
         bool res = false;
         started = call(RESET_METHOD).result(res) && res;
-        notify(SET_BUF_METHOD, BRIDGE_RPC_BUFFER_SIZE);     // no effect if Router is not exposing $/buff
+        notify(SET_BUF_METHOD, BRIDGE_RPC_BUFFER_SIZE);     // no effect if Router is not exposing SET_BUF_METHOD
         k_mutex_unlock(&bridge_mutex);
         return res;
     }
