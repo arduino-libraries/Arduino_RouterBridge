@@ -175,8 +175,6 @@ private:
 
 };
 
-extern BridgeClass Bridge;
-
-inline BridgeMonitor<> Monitor(Bridge);
+extern BridgeMonitor<> Monitor;
 
 #endif // BRIDGE_MONITOR_H
