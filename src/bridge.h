@@ -313,6 +313,8 @@ private:
 
 };
 
+extern BridgeClass Bridge;
+
 class BridgeClassUpdater {
 public:
     static void safeUpdate(BridgeClass* bridge) {
@@ -324,8 +326,6 @@ public:
 private:
     BridgeClassUpdater() = delete; // prevents instantiation
 };
-
-inline BridgeClass Bridge(Serial1);
 
 inline void updateEntryPoint(void *, void *, void *){
     while (true) {
