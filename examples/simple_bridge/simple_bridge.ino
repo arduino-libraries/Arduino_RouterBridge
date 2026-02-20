@@ -26,7 +26,7 @@ String greet() {
 }
 
 void setup() {
-    Serial.begin(115200);
+    Serial1.begin(115200);
     while (!Serial);
     
     pinMode(LED_BUILTIN, OUTPUT);
@@ -34,9 +34,9 @@ void setup() {
     Bridge.begin();
 
     if (!Bridge.provide("set_led", set_led)) {
-        Serial.println("Error providing method: set_led");
+        Serial1.println("Error providing method: set_led");
     } else {
-        Serial.println("Registered method: set_led");
+        Serial1.println("Registered method: set_led");
     }
 
     Bridge.provide("add", add);
@@ -48,19 +48,19 @@ void setup() {
 void loop() {
     float res;
     if (!Bridge.call("multiply", 1.0, 2.0).result(res)) {
-        Serial.println("Error calling method: multiply");
+        Serial1.println("Error calling method: multiply");
     };
 
     // Call with deferred response check
     RpcCall outcome = Bridge.call("multiply", 5.0, 7.0);
-    Serial.println("RPC called");
+    Serial1.println("RPC called");
     delay(10);
     if (outcome.result(res)) {
-        Serial.print("Result of the operation is: ");
-        Serial.println(res);
+        Serial1.print("Result of the operation is: ");
+        Serial1.println(res);
     } else {
-        Serial.println(outcome.getErrorCode());
-        Serial.println(outcome.getErrorMessage());
+        Serial1.println(outcome.getErrorCode());
+        Serial1.println(outcome.getErrorMessage());
     }
 
     Bridge.notify("signal", 200);

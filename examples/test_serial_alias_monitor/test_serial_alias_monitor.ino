@@ -1,0 +1,30 @@
+/*
+This file is part of the Arduino_RouterBridge library.
+
+    Copyright (c) 2025 Arduino SA
+
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+*/
+
+#include <Arduino_RouterBridge.h>
+
+void setup() {
+
+    // This should be a harmless repeated .begin call
+    Serial.begin(115200);
+    Monitor.begin(115200);
+
+}
+
+void loop() {
+
+    Serial.println("### Serial as Monitor ALIAS Test ###");
+    Serial.println("Serial.print and Monitor.print should write on the same stream");
+
+    Serial.println("-- Serial --");
+    delay(1000);
+    Monitor.println("-- Monitor --");
+}

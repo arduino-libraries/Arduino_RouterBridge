@@ -12,24 +12,24 @@
 #include <Arduino_RouterBridge.h>
 
 void setup() {
-    Serial.begin(115200);
+    Serial1.begin(115200);
     while (!Serial) {
         delay(10);
     }
 
-    Serial.println("Arduino HCI Example - Read Local Version");
+    Serial1.println("Arduino HCI Example - Read Local Version");
 
     if (!Bridge.begin()) {
-        Serial.println("Failed to setup Bridge");
+        Serial1.println("Failed to setup Bridge");
         return;
     }
 
     if (!HCI.begin("hci0")) {
-        Serial.println("Failed to open HCI device");
+        Serial1.println("Failed to open HCI device");
         return;
     }
 
-    Serial.println("HCI device opened successfully");
+    Serial1.println("HCI device opened successfully");
 
     delay(1000);
     readLocalVersion();
@@ -47,20 +47,20 @@ void readLocalVersion() {
     cmd[2] = 0x10;  // OGF = 0x04 (0x04 << 2 = 0x10 in upper 6 bits)
     cmd[3] = 0x00;  // Parameter length = 0
 
-    Serial.println("Sending HCI Read Local Version command...");
+    Serial1.println("Sending HCI Read Local Version command...");
 
     int sent = HCI.send(cmd, sizeof(cmd));
     if (sent < 0) {
-        Serial.println("Failed to send HCI command");
+        Serial1.println("Failed to send HCI command");
         return;
     }
 
-    Serial.print("Sent ");
-    Serial.print(sent);
-    Serial.println(" bytes");
+    Serial1.print("Sent ");
+    Serial1.print(sent);
+    Serial1.println(" bytes");
 
     // Wait for response with timeout
-    Serial.println("Waiting for response...");
+    Serial1.println("Waiting for response...");
     int avail = 0;
     unsigned long startTime = millis();
     while (avail == 0 && (millis() - startTime) < 1000) {  // 1 second timeout
@@ -70,11 +70,11 @@ void readLocalVersion() {
         }
     }
 
-    Serial.print("Available bytes: ");
-    Serial.println(avail);
+    Serial1.print("Available bytes: ");
+    Serial1.println(avail);
 
     if (avail == 0) {
-        Serial.println("Timeout: No response received");
+        Serial1.println("Timeout: No response received");
         return;
     }
 
@@ -83,26 +83,26 @@ void readLocalVersion() {
     int received = HCI.recv(response, sizeof(response));
 
     if (received > 0) {
-        Serial.print("Received ");
-        Serial.print(received);
-        Serial.println(" bytes:");
+        Serial1.print("Received ");
+        Serial1.print(received);
+        Serial1.println(" bytes:");
 
         // Print response in hex
         for (int i = 0; i < received; i++) {
-            if (response[i] < 0x10) Serial.print("0");
-            Serial.print(response[i], HEX);
-            Serial.print(" ");
+            if (response[i] < 0x10) Serial1.print("0");
+            Serial1.print(response[i], HEX);
+            Serial1.print(" ");
         }
-        Serial.println();
+        Serial1.println();
 
         // Parse Command Complete Event
         // Event format: Packet Type, Event Code, Param Length, Num_HCI_Command_Packets, Opcode, Status, ...
         if (received >= 6 && response[0] == 0x04 && response[1] == 0x0E) {
-            Serial.println("Command Complete Event received");
-            Serial.print("Status: 0x");
-            Serial.println(response[6], HEX);
+            Serial1.println("Command Complete Event received");
+            Serial1.print("Status: 0x");
+            Serial1.println(response[6], HEX);
         }
     } else {
-        Serial.println("No response received");
+        Serial1.println("No response received");
     }
 }

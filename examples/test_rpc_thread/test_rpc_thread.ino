@@ -15,8 +15,8 @@ void rpc_thread_entry(void *p1, void *p2, void *p3) {
     // Give setup() time to complete first result()
     k_sleep(K_MSEC(400));
 
-    Serial.println("\n--- Second Thread ---");
-    Serial.println("Calling result() again...");
+    Serial1.println("\n--- Second Thread ---");
+    Serial1.println("Calling result() again...");
 
     k_mutex_lock(mtx, K_FOREVER);
 
@@ -24,30 +24,30 @@ void rpc_thread_entry(void *p1, void *p2, void *p3) {
     bool ok = call->result(msg);
 
     if (ok) {
-        Serial.println("ERR - Second call succeeded (unexpected!)");
-        Serial.print("Message: ");
-        Serial.println(msg.c_str());
+        Serial1.println("ERR - Second call succeeded (unexpected!)");
+        Serial1.print("Message: ");
+        Serial1.println(msg.c_str());
     } else {
-        Serial.println("OK - Second call FAILED as expected (already executed)");
-        Serial.print("Error Code: 0x");
-        Serial.println(call->getErrorCode(), HEX);
-        Serial.print("Error Message: ");
-        Serial.println(call->getErrorMessage().c_str());
+        Serial1.println("OK - Second call FAILED as expected (already executed)");
+        Serial1.print("Error Code: 0x");
+        Serial1.println(call->getErrorCode(), HEX);
+        Serial1.print("Error Message: ");
+        Serial1.println(call->getErrorMessage().c_str());
     }
 
     k_mutex_unlock(mtx);
 
-    Serial.println("--- Second Thread End ---\n");
+    Serial1.println("--- Second Thread End ---\n");
 }
 
 
 void setup() {
-    Serial.begin(115200);
+    Serial1.begin(115200);
     k_sleep(K_MSEC(2000));
 
-    Serial.println("\n=== Threaded RPC Test ===\n");
+    Serial1.println("\n=== Threaded RPC Test ===\n");
 
-    Serial.println("*** Main Thread (setup) ***");
+    Serial1.println("*** Main Thread (setup) ***");
 
     Bridge.begin();
     Monitor.begin();
@@ -58,19 +58,19 @@ void setup() {
     RpcCall loopback_call = Bridge.call("loopback", "TEST");
 
     if (loopback_call.isError()) {
-        Serial.println("OK - RPC call in Error mode before execution");
-        Serial.print("Error Code: 0x");
-        Serial.println(loopback_call.getErrorCode(), HEX);
-        Serial.print("Error Message: ");
-        Serial.println(loopback_call.getErrorMessage().c_str());
+        Serial1.println("OK - RPC call in Error mode before execution");
+        Serial1.print("Error Code: 0x");
+        Serial1.println(loopback_call.getErrorCode(), HEX);
+        Serial1.print("Error Message: ");
+        Serial1.println(loopback_call.getErrorMessage().c_str());
     } else {
-        Serial.println("ERR - RPC call not in Error mode before execution (unexpected)");
+        Serial1.println("ERR - RPC call not in Error mode before execution (unexpected)");
     }
 
-    Serial.println("Waiting for the other side...\n");
+    Serial1.println("Waiting for the other side...\n");
     delay(2000);
 
-    Serial.println("calling .result() on RPC call (main thread)");
+    Serial1.println("calling .result() on RPC call (main thread)");
 
     MsgPack::str_t msg;
     k_mutex_lock(&loop_mtx, K_FOREVER);
@@ -78,15 +78,15 @@ void setup() {
     k_mutex_unlock(&loop_mtx);
 
     if (ok) {
-        Serial.println("OK - First call succeeded.");
-        Serial.print("Message: ");
-        Serial.println(msg.c_str());
+        Serial1.println("OK - First call succeeded.");
+        Serial1.print("Message: ");
+        Serial1.println(msg.c_str());
     } else {
-        Serial.println("ERR - First call FAILED (unexpected).");
+        Serial1.println("ERR - First call FAILED (unexpected).");
     }
 
     // ---- Launch second thread ----
-    Serial.println("\nStarting second thread...");
+    Serial1.println("\nStarting second thread...");
 
     struct k_thread rpc_thread;
 
@@ -106,9 +106,9 @@ void setup() {
                                     );
 
     k_thread_start(rpc_tid);
-    Serial.println("Second thread launched... joining");
+    Serial1.println("Second thread launched... joining");
     k_thread_join(&rpc_thread, K_FOREVER);
-    Serial.println("*** Main thread end ending setup ***");
+    Serial1.println("*** Main thread end ending setup ***");
 
 }
 

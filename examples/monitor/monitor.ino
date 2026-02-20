@@ -26,22 +26,22 @@ String greet() {
 }
 
 void setup() {
-    Serial.begin(115200);
+    Serial1.begin(115200);
 
     if (!Bridge.begin()) {
-        Serial.println("cannot setup Bridge");
+        Serial1.println("cannot setup Bridge");
     }
 
     if(!Monitor.begin()){
-        Serial.println("cannot setup Monitor");
+        Serial1.println("cannot setup Monitor");
     }
 
     pinMode(LED_BUILTIN, OUTPUT);
 
     if (!Bridge.provide("set_led", set_led)) {
-        Serial.println("Error providing method: set_led");
+        Serial1.println("Error providing method: set_led");
     } else {
-        Serial.println("Registered method: set_led");
+        Serial1.println("Registered method: set_led");
     }
 
     Bridge.provide("add", add);
