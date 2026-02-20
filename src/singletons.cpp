@@ -1,4 +1,4 @@
-#define ZEPHYR_INCLUDE_DRIVERS_UART_H_
+#define UNO_Q_MONITOR_ALIAS
 #include "Arduino_RouterBridge.h"
 
 #ifndef UNO_Q_SERIAL_RPC
