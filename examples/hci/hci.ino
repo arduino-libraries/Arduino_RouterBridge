@@ -13,9 +13,6 @@
 
 void setup() {
     Serial1.begin(115200);
-    while (!Serial) {
-        delay(10);
-    }
 
     Serial1.println("Arduino HCI Example - Read Local Version");
 
