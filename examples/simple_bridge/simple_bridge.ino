@@ -1,12 +1,12 @@
 /*
     This file is part of the Arduino_RouterBridge library.
 
-    Copyright (c) 2025 Arduino SA
+    Copyright (C) Arduino s.r.l. and/or its affiliated companies
 
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
     file, You can obtain one at http://mozilla.org/MPL/2.0/.
-    
+
 */
 
 #include <Arduino_RouterBridge.h>
@@ -26,18 +26,12 @@ String greet() {
 }
 
 void setup() {
-    Serial1.begin(115200);
-    while (!Serial);
-    
+    //Bridge.begin();   // optional when Serial.begin is called
+    Serial.begin();     // same as Monitor.begin();
+
     pinMode(LED_BUILTIN, OUTPUT);
 
-    Bridge.begin();
-
-    if (!Bridge.provide("set_led", set_led)) {
-        Serial1.println("Error providing method: set_led");
-    } else {
-        Serial1.println("Registered method: set_led");
-    }
+    if (!Bridge.provide("set_led", set_led));
 
     Bridge.provide("add", add);
 
@@ -48,19 +42,19 @@ void setup() {
 void loop() {
     float res;
     if (!Bridge.call("multiply", 1.0, 2.0).result(res)) {
-        Serial1.println("Error calling method: multiply");
+        Serial.println("Error calling method: multiply");
     };
 
     // Call with deferred response check
     RpcCall outcome = Bridge.call("multiply", 5.0, 7.0);
-    Serial1.println("RPC called");
+    Serial.println("RPC called");
     delay(10);
     if (outcome.result(res)) {
-        Serial1.print("Result of the operation is: ");
-        Serial1.println(res);
+        Serial.print("Result of the operation is: ");
+        Serial.println(res);
     } else {
-        Serial1.println(outcome.getErrorCode());
-        Serial1.println(outcome.getErrorMessage());
+        Serial.println(outcome.getErrorCode());
+        Serial.println(outcome.getErrorMessage());
     }
 
     Bridge.notify("signal", 200);

@@ -1,3 +1,15 @@
+/*
+    This file is part of the Arduino_RouterBridge library.
+
+    Copyright (C) Arduino s.r.l. and/or its affiliated companies
+
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+*/
+
+
 #include <Arduino_RouterBridge.h>
 #include <zephyr/kernel.h>
 
@@ -42,7 +54,7 @@ void rpc_thread_entry(void *p1, void *p2, void *p3) {
 
 
 void setup() {
-    Serial1.begin(115200);
+    Serial1.begin(115200);          // Serial1 is used here for debugging so to not mess up with the Bridge
     k_sleep(K_MSEC(2000));
 
     Serial1.println("\n=== Threaded RPC Test ===\n");
@@ -50,7 +62,6 @@ void setup() {
     Serial1.println("*** Main Thread (setup) ***");
 
     Bridge.begin();
-    Monitor.begin();
 
     static struct k_mutex loop_mtx;
     k_mutex_init(&loop_mtx);

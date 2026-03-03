@@ -1,5 +1,5 @@
 /*
-This file is part of the Arduino_RouterBridge library.
+    This file is part of the Arduino_RouterBridge library.
 
     Copyright (C) Arduino s.r.l. and/or its affiliated companies
 
@@ -12,15 +12,11 @@ This file is part of the Arduino_RouterBridge library.
 #include <Arduino_RouterBridge.h>
 
 void setup() {
-
-    // This should be a harmless repeated .begin call
-    Serial.begin(115200);
-    Monitor.begin(115200);
-
+    //Bridge.begin();         // optional when Serial.begin is called
+    Serial.begin(115200);     // same as Monitor.begin();
 }
 
 void loop() {
-
     Serial.println("### Serial as Monitor ALIAS Test ###");
     Serial.println("Serial.print and Monitor.print should write on the same stream");
 
