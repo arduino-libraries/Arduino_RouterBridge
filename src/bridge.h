@@ -17,7 +17,7 @@
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
 #define GET_VERSION_METHOD "$/version"
-#define SET_BUF_METHOD "$/maxbuffsize"
+#define SET_BUF_METHOD "$/setMaxMsgSize"
 
 //#define BRIDGE_ERROR "$/bridgeLog"
 
