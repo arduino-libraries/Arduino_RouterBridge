@@ -95,7 +95,7 @@ void sendNTPpacket(const char * address) {
     Udp.write(packetBuffer, NTP_PACKET_SIZE);
     Udp.endPacket();
   } else {
-    Serial.println("Failed to send NTP request.");
+    Serial.println("Failed to send NTP request. Check router for available RPC calls");
   }
 }
 
