@@ -11,5 +11,14 @@
 
 #include "Arduino_RouterBridge.h"
 
-BridgeClass Bridge(Serial1);
+#ifndef ARDUINO_ROUTER_SERIAL
+#define ARDUINO_ROUTER_SERIAL Serial1
+#endif
+
+BridgeClass Bridge(ARDUINO_ROUTER_SERIAL);
 BridgeMonitor<> Monitor(Bridge);
+
+#ifdef ARDUINO_ROUTERBRIDGE_PROVIDES_SERIAL
+// Alias the 'Serial' object to the above 'Monitor' instance
+extern BridgeMonitor<> Serial [[gnu::alias("Monitor")]];
+#endif
