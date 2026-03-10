@@ -1,7 +1,7 @@
 /*
     This file is part of the Arduino_RouterBridge library.
 
-    Copyright (c) Arduino s.r.l. and/or its affiliated companies
+    Copyright (C) Arduino s.r.l. and/or its affiliated companies
 
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -24,7 +24,7 @@ void setup() {
     Serial.println("Serial.print and Monitor.print should write on the same stream.");
 #else
     // Old cores do not provide support for Serial aliasing.
-    Serial.println("NOTE: Please update the current core to support aliasing Serial."); 
+    Serial.println("NOTE: Please update the current core to support aliasing Serial.");
     Serial.println("Serial.print and Monitor.print will write on separate streams.");
 #endif
 
