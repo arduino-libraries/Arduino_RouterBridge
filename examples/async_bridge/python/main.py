@@ -5,8 +5,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 #     file, You can obtain one at http://mozilla.org/MPL/2.0/.
-#
-# A python sketch that uses RPC Bridge to test the server.ino
+
+# A python sketch that uses RPC Bridge to test the async_bridge.ino
 
 import time
 from arduino.app_utils import *
@@ -16,18 +16,18 @@ def log(msg):
     with open("./log.log", "a") as f:
         f.write(str(msg) + "\n")
 
+
+def multiply(a, b):
+    return a * b
+
+
 def loop():
-    res = Bridge.call("tcp/connect", "127.0.0.1", 5678)
-    log(f"Connection attempt id: {res}")
+    message = "Hello from Python!"
 
-    written = Bridge.call("tcp/write", res, "Hello friend")
-    log(f"Written msg of len: {written}")
+    Bridge.notify("mailme", message)
 
     time.sleep(1)
 
-    ok = Bridge.call("tcp/close", res)
-    log(f"Closed connection: {ok}")
-
-    time.sleep(1)
+Bridge.provide("multiply", multiply)
 
 App.run(user_loop=loop)

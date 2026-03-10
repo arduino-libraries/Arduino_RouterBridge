@@ -1,7 +1,7 @@
 /*
     This file is part of the Arduino_RouterBridge library.
 
-    Copyright (c) 2025 Arduino SA
+    Copyright (C) Arduino s.r.l. and/or its affiliated companies
 
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -12,17 +12,10 @@
 #include <Arduino_RouterBridge.h>
 
 void setup() {
-    Serial.begin(115200);
-    while (!Serial) {
-        delay(10);
-    }
+    //Bridge.begin();   // optional when Serial.begin is called
+    Serial.begin();     // same as Monitor.begin();
 
     Serial.println("Arduino HCI Example - Read Local Version");
-
-    if (!Bridge.begin()) {
-        Serial.println("Failed to setup Bridge");
-        return;
-    }
 
     if (!HCI.begin("hci0")) {
         Serial.println("Failed to open HCI device");
