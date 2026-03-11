@@ -1,12 +1,12 @@
 /*
     This file is part of the Arduino_RouterBridge library.
 
-    Copyright (c) 2025 Arduino SA
+    Copyright (C) Arduino s.r.l. and/or its affiliated companies
 
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
     file, You can obtain one at http://mozilla.org/MPL/2.0/.
-    
+
 */
 
 #include <Arduino_RouterBridge.h>
@@ -26,22 +26,22 @@ String greet() {
 }
 
 void setup() {
-    Serial.begin(115200);
+    Serial1.begin(115200);                          // To debug on UNO pins 0-1 use Serial1
 
     if (!Bridge.begin()) {
-        Serial.println("cannot setup Bridge");
+        Serial1.println("cannot setup Bridge");
     }
 
-    if(!Monitor.begin()){
-        Serial.println("cannot setup Monitor");
+    if(!Monitor.begin()){                           // This might as well be Serial.begin
+        Serial1.println("cannot setup Monitor");
     }
 
     pinMode(LED_BUILTIN, OUTPUT);
 
     if (!Bridge.provide("set_led", set_led)) {
-        Serial.println("Error providing method: set_led");
+        Serial1.println("Error providing method: set_led");
     } else {
-        Serial.println("Registered method: set_led");
+        Serial1.println("Registered method: set_led");
     }
 
     Bridge.provide("add", add);
