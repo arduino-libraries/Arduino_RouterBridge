@@ -11,6 +11,8 @@
 
 #include <Arduino_RouterBridge.h>
 
+using RouterBridge::HCI;
+
 void setup() {
     Serial.begin(115200);
     while (!Serial) {

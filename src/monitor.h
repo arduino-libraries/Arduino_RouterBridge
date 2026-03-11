@@ -178,8 +178,13 @@ private:
 
 };
 
-extern BridgeClass Bridge;
+extern BridgeMonitor<> Monitor;
 
-inline BridgeMonitor<> Monitor(Bridge);
+#ifdef ARDUINO_ROUTERBRIDGE_PROVIDES_SERIAL
+/* 'Monitor' is aliased to 'Serial' for compatibility with existing sketches.
+ * Both identifiers will refer to the same BridgeMonitor instance.
+ */
+extern BridgeMonitor<> Serial;
+#endif
 
 #endif // BRIDGE_MONITOR_H

@@ -157,13 +157,15 @@ public:
 
 };
 
-extern BridgeClass Bridge;
-
 namespace RouterBridge {
     inline BridgeHCI<> HCI(Bridge);
 }
 
+#ifndef ARDUINO_ROUTERBRIDGE_PROVIDES_SERIAL
 // Make available in global namespace for backward compatibility
+// but not on platforms that require this library in all builds
+// to avoid clashes with ArduinoBLE
 using RouterBridge::HCI;
+#endif
 
 #endif // BRIDGE_HCI_H
