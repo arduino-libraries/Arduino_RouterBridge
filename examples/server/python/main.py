@@ -8,7 +8,7 @@ def log(msg):
     with open("./log.log", "a") as f:
         f.write(str(msg) + "\n")
 
-def main():
+def loop():
     res = Bridge.call("tcp/connect", "127.0.0.1", 5678)
     log(f"Connection attempt id: {res}")
 
@@ -20,8 +20,6 @@ def main():
     ok = Bridge.call("tcp/close", res)
     log(f"Closed connection: {ok}")
 
-if __name__ == "__main__":
+    time.sleep(1)
 
-    while True:
-        main()
-        time.sleep(1)
+App.run(user_loop=loop)

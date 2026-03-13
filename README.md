@@ -12,6 +12,13 @@ Including Arduino_RouterBridge.h gives the user access to a Bridge object that c
 - Thread-safe methods execution is granted in the main loop thread where update_safe is called. By design users cannot access .update_safe() freely
 - Thread-unsafe methods are served in an update callback, whose execution is granted in a separate thread. Nonetheless users can access .update() freely with caution
 
+**Serial as Monitor ALIAS**
+
+#TODO check version
+Staring from Zephyr core ver. 0.54.0 the `Serial` object is an alias for `Monitor` meaning that printing on the `Serial`
+object is redirected to the Router running on the CPU host.
+
+If debugging is needed on the physical UNO UART (Pins 0→RX,1←TX) please use `Serial1`
 
 ```cpp
 #include <Arduino_RouterBridge.h>
@@ -27,15 +34,15 @@ String greet() {
 
 void setup() {
 
-    Bridge.begin();
-    Monitor.begin();
+    //Bridge.begin();   // optional when Serial.begin is called
+    Serial.begin();     // same as Monitor.begin();
 
     pinMode(LED_BUILTIN, OUTPUT);
 
     if (!Bridge.provide("set_led", set_led)) {
-        Monitor.println("Error providing method: set_led");
+        Serial.println("Error providing method: set_led");
     } else {
-        Monitor.println("Registered method: set_led");
+        Serial.println("Registered method: set_led");
     }
 
     Bridge.provide_safe("greet", greet);
@@ -49,23 +56,23 @@ void loop() {
 
     // Standard chained call: Bridge.call("method", params...).result(res)
     if (!Bridge.call("add", 1.0, 2.0).result(sum)) {
-        Monitor.println("Error calling method: add");
+        Serial.println("Error calling method: add");
     };
 
     // Async call
     RpcCall async_rpc = Bridge.call("add", 3.0, 4.5);
     if (!async_rpc.result(sum)) {
-        Monitor.println("Error calling method: add");
-        Monitor.print("Error code: ");
-        Monitor.println(async_rpc.getErrorCode());
-        Monitor.print("Error message: ");
-        Monitor.println(async_rpc.getErrorMessage());
+        Serial.println("Error calling method: add");
+        Serial.print("Error code: ");
+        Serial.println(async_rpc.getErrorCode());
+        Serial.print("Error message: ");
+        Serial.println(async_rpc.getErrorMessage());
     }
 
     // Implicit boolean cast. Use with caution as in this case the call is indeed
     // executed expecting a fallback nil result (MsgPack::object::nil_t)
     if (!Bridge.call("send_greeting", "Hello Friend")) {
-        Monitor.println("Error calling method: send_greeting");
+        Serial.println("Error calling method: send_greeting");
     };
 
     // Please use notify when no reult (None, null, void, nil etc.) is expected from the opposite side

@@ -1,7 +1,7 @@
 /*
     This file is part of the Arduino_RouterBridge library.
 
-    Copyright (c) 2025 Arduino SA
+    Copyright (C) Arduino s.r.l. and/or its affiliated companies
 
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -315,6 +315,8 @@ private:
 
 };
 
+extern BridgeClass Bridge;
+
 class BridgeClassUpdater {
 public:
     static void safeUpdate(BridgeClass* bridge) {
@@ -326,8 +328,6 @@ public:
 private:
     BridgeClassUpdater() = delete; // prevents instantiation
 };
-
-inline BridgeClass Bridge(Serial1);
 
 inline void updateEntryPoint(void *, void *, void *){
     while (true) {
