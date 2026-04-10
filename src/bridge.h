@@ -192,8 +192,10 @@ public:
         while (!*serial_ptr){
             k_yield();
         }
-        // This allows Router to flush broken RPCs from the previous run
+#if defined(ARDUINO_UNO_Q) 
+        // Flush broken RPCs from the previous run on hardware serial.
         serial_ptr->write("MCU starting RPC Bridge communication");
+#endif
         transport = new SerialTransport(*serial_ptr);
 
         client = new RPCClient(*transport);
