@@ -139,11 +139,11 @@ public:
 
     bool reset() {
         k_mutex_lock(&monitor_mutex, K_FOREVER);
-        bool res;
-        bool ok = bridge->call(MON_RESET_METHOD).result(res) && res;
-        _connected = !ok;
+        bool res = false;
+        bridge->call(MON_RESET_METHOD).result(res);
+        if (res) {_connected = false;}
         k_mutex_unlock(&monitor_mutex);
-        return ok;
+        return res;
     }
 
 private:
