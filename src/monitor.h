@@ -74,7 +74,14 @@ public:
     }
 
     explicit operator bool() {
-        return is_connected();
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        bool out = _connected;
+        if (!_connected) {
+            bridge->call(MON_CONNECTED_METHOD).result(out);
+            _connected = out;
+        }
+        k_mutex_unlock(&monitor_mutex);
+        return out;
     }
 
     int read() override {
