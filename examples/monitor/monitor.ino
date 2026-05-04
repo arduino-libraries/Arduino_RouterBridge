@@ -32,8 +32,10 @@ void setup() {
         Serial.println("cannot setup Bridge");
     }
 
-    if(!Monitor.begin()){
+    Monitor.begin(115200);
+    while (!Monitor) {
         Serial.println("cannot setup Monitor");
+        delay(1000);
     }
 
     pinMode(LED_BUILTIN, OUTPUT);

@@ -5,13 +5,9 @@ BridgeTCPServer<> server(Bridge, localhost, 5678);
 
 void setup() {
 
-    if (!Bridge.begin()) {
-        while (true) {}
-    }
-
-    if (!Monitor.begin()) {
-        while (true) {}
-    }
+    Bridge.begin();
+    Monitor.begin(115200);
+    while (!Monitor) {}
 
     server.begin();
 

@@ -34,7 +34,7 @@ void setup() {
     
     // Initialize Bridge and Monitor
     Bridge.begin();
-    Monitor.begin();
+    Monitor.begin(115200);
 
     Monitor.println("\n===========================================");
     Monitor.println("UDP Echo Test");

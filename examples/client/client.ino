@@ -3,15 +3,8 @@
 BridgeTCPClient<> client(Bridge);
 
 void setup() {
-
-    if (!Bridge.begin()) {
-        while (true) {}
-    }
-
-    if (!Monitor.begin()) {
-        while (true) {}
-    }
-
+    Bridge.begin();
+    Monitor.begin(115200);
 }
 
 void loop() {

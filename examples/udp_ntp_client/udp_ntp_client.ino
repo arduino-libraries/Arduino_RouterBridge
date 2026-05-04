@@ -22,7 +22,7 @@ int NTP_PACKET_SIZE = 48;                  // NTP time stamp is in the first 48 
 BridgeUDP<4096> Udp(Bridge);
 
 void setup() {
-  Monitor.begin();
+  Monitor.begin(115200);
   Udp.begin(localPort);
 }
 

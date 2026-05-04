@@ -50,7 +50,7 @@ void setup() {
     Serial.println("*** Main Thread (setup) ***");
 
     Bridge.begin();
-    Monitor.begin();
+    Monitor.begin(115200);
 
     static struct k_mutex loop_mtx;
     k_mutex_init(&loop_mtx);

@@ -29,7 +29,7 @@ String greet() {
 void setup() {
 
     Bridge.begin();
-    Monitor.begin();
+    Monitor.begin(115200);
 
     pinMode(LED_BUILTIN, OUTPUT);
 

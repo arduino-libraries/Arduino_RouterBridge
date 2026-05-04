@@ -19,15 +19,8 @@ static const char ca_cert[] = {
 BridgeTCPClient<> client(Bridge);
 
 void setup() {
-
-  if (!Bridge.begin()) {
-    while (true) {}
-  }
-
-  if (!Monitor.begin()) {
-    while (true) {}
-  }
-
+  Bridge.begin();
+  Monitor.begin(115200);
 }
 
 void loop() {
@@ -47,7 +40,7 @@ void loop() {
   w += client.println("Connection: close");
   w += client.println();
 
-  /* if there are incoming bytes available  from the server,
+  /* if there are incoming bytes available from the server,
    * read them and print them:
    */
   while (client.connected()) {

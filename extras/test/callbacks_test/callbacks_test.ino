@@ -17,7 +17,7 @@ int i=0;
 
 void setup() {
    Bridge.begin();
-   Monitor.begin();
+   Monitor.begin(115200);
 }
 
 void loop() {
