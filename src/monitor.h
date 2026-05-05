@@ -38,14 +38,14 @@ public:
 
     using Print::write;
 
-    void begin(unsigned long _legacy_baud=0, uint16_t _legacy_config=0) {
+    bool begin(unsigned long _legacy_baud=0, uint16_t _legacy_config=0) {
 	// unused parameters for compatibility with Stream
 	(void)_legacy_baud;
 	(void)_legacy_config;
 
         k_mutex_init(&monitor_mutex);
 
-        if (is_connected()) return;
+        if (is_connected()) return true;
 
         k_mutex_lock(&monitor_mutex, K_FOREVER);
         bool bridge_started = (*bridge);
@@ -55,7 +55,7 @@ public:
 
         if (!bridge_started) {
             k_mutex_unlock(&monitor_mutex);
-            return;
+            return false;
         }
 
         bool out = false;
@@ -63,6 +63,7 @@ public:
         MsgPack::str_t ver;
         _compatibility_mode = !bridge->getRouterVersion(ver);
         k_mutex_unlock(&monitor_mutex);
+        return out;
     }
 
     bool is_connected() {
