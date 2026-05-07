@@ -74,7 +74,14 @@ public:
     }
 
     explicit operator bool() {
-        return is_connected();
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        bool out = _connected;
+        if (!_connected) {
+            bridge->call(MON_CONNECTED_METHOD).result(out);
+            _connected = out;
+        }
+        k_mutex_unlock(&monitor_mutex);
+        return out;
     }
 
     int read() override {
@@ -120,6 +127,8 @@ public:
 
     size_t write(const uint8_t* buffer, size_t size) override {
 
+        if (!*this) { return 0; }
+
         String send_buffer;
 
         for (size_t i = 0; i < size; ++i) {
@@ -152,12 +161,9 @@ private:
 
         if (size == 0) return;
 
-        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        if (!*this) return;
 
-        if (!_connected) {
-            k_mutex_unlock(&monitor_mutex);
-            return;
-        }
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
         RpcCall async_rpc = bridge->call(MON_READ_METHOD, size);
