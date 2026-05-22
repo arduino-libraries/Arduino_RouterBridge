@@ -1,6 +1,5 @@
-# SPDX-FileCopyrightText: Copyright (C) 2025 ARDUINO SA <http://www.arduino.cc>
-#
-# SPDX-License-Identifier: MPL-2.0
+# Copyright (c) Arduino s.r.l. and/or its affiliated companies
+# SPDX-License-Identifier: Apache-2.0
 
 import time
 from arduino.app_utils import *
