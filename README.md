@@ -1,16 +1,17 @@
-In this repo it will be implemented an Arduino library wrapper for RPClite to be run on Arduino UNO Q boards.
+Arduino_RouterBridge is a zephyr RTOS multithreading wrapper of [RPClite](https://github.com/arduino-libraries/Arduino_RPClite), designed for Arduino UNO Q boards.
 
 ## The Bridge object ##
 
-Including Arduino_RouterBridge.h gives the user access to a Bridge object that can be used both as a RPC client and/or server to execute and serve RPCs to/from the CPU Host running a GOLANG router.
+By including `Arduino_RouterBridge.h` the user gains access to a `Bridge` singleton object that can be used as an RPC
+client/server to execute and serve RPCs to/from a CPU Host running an [rpclib](http://rpclib.net/spec/) compatible Router.
 
-- The Bridge object is pre-defined on Serial1 and automatically initialized inside the main setup()
-- The Bridge.call method is non-blocking and returns a RpcCall async object
-- RpcCall class implements a blocking .result method that waits for the RPC response and returns true if the RPC returned with no errors
-- The RpcCall.result will return - by reference - the result value of that call *exactly once*. Subsequent calls to .result will return an error condition
-- The Bridge can provide callbacks to incoming RPC requests both in a thread-unsafe and thread-safe fashion (provide & provide_safe)
-- Thread-safe methods execution is granted in the main loop thread where update_safe is called. By design users cannot access .update_safe() freely
-- Thread-unsafe methods are served in an update callback, whose execution is granted in a separate thread. Nonetheless users can access .update() freely with caution
+- The `Bridge` object is defined over an UART port routed by the zephyr core, falling back to Serial1 if the core does not provide it
+- The `Bridge.call` method is non-blocking and returns an RpcCall async object
+- `RpcCall` class implements a blocking `.result` method that waits for the RPC response and returns true if the RPC returned with no errors
+- `RpcCall.result` writes the return value of the remote call to the provided reference parameter. The result can be retrieved *exactly once*; subsequent calls to `.result` return an error.
+- The `Bridge` can provide callbacks to incoming RPC requests both in a thread-unsafe and thread-safe fashion (by means of `BridgeClass::provide` and `BridgeClass::provide_safe`)
+- Thread-safe methods execution is granted in the main loop thread where `update_safe` is called. By design, users cannot access `.update_safe()` freely
+- Thread-unsafe methods are served in an update callback, whose execution is granted in a separate thread. Nonetheless, users can access `.update()` freely with caution
 
 
 ```cpp
@@ -28,18 +29,12 @@ String greet() {
 void setup() {
 
     Bridge.begin();
-    Monitor.begin();
+    Monitor.begin(115200);
 
     pinMode(LED_BUILTIN, OUTPUT);
 
-    if (!Bridge.provide("set_led", set_led)) {
-        Monitor.println("Error providing method: set_led");
-    } else {
-        Monitor.println("Registered method: set_led");
-    }
-
+    Bridge.provide("set_led", set_led);
     Bridge.provide_safe("greet", greet);
-
 }
 
 void loop() {
@@ -73,3 +68,7 @@ void loop() {
     Bridge.notify("signal", 200);
 }
 ```
+
+**⚠️ Warning**
+
+> Calling `Bridge.call` from within an RPC callback may cause an MCU–CPU IPC deadlock.

@@ -1,3 +1,14 @@
+/*
+    This file is part of the Arduino_RouterBridge library.
+
+    Copyright (C) Arduino s.r.l. and/or its affiliated companies
+
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+*/
+
 #include <Arduino_RouterBridge.h>
 #include <zephyr/kernel.h>
 
@@ -50,7 +61,7 @@ void setup() {
     Serial.println("*** Main Thread (setup) ***");
 
     Bridge.begin();
-    Monitor.begin();
+    Monitor.begin(115200);
 
     static struct k_mutex loop_mtx;
     k_mutex_init(&loop_mtx);

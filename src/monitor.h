@@ -1,7 +1,7 @@
 /*
     This file is part of the Arduino_RouterBridge library.
 
-    Copyright (c) 2025 Arduino SA
+    Copyright (C) Arduino s.r.l. and/or its affiliated companies
 
     This Source Code Form is subject to the terms of the Mozilla Public
     License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -74,7 +74,14 @@ public:
     }
 
     explicit operator bool() {
-        return is_connected();
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        bool out = _connected;
+        if (!_connected) {
+            bridge->call(MON_CONNECTED_METHOD).result(out);
+            _connected = out;
+        }
+        k_mutex_unlock(&monitor_mutex);
+        return out;
     }
 
     int read() override {
@@ -120,6 +127,8 @@ public:
 
     size_t write(const uint8_t* buffer, size_t size) override {
 
+        if (!*this) { return 0; }
+
         String send_buffer;
 
         for (size_t i = 0; i < size; ++i) {
@@ -140,11 +149,11 @@ public:
 
     bool reset() {
         k_mutex_lock(&monitor_mutex, K_FOREVER);
-        bool res;
-        bool ok = bridge->call(MON_RESET_METHOD).result(res) && res;
-        _connected = !ok;
+        bool res = false;
+        bridge->call(MON_RESET_METHOD).result(res);
+        if (res) {_connected = false;}
         k_mutex_unlock(&monitor_mutex);
-        return ok;
+        return res;
     }
 
 private:
@@ -152,12 +161,9 @@ private:
 
         if (size == 0) return;
 
-        k_mutex_lock(&monitor_mutex, K_FOREVER);
+        if (!*this) return;
 
-        if (!_connected) {
-            k_mutex_unlock(&monitor_mutex);
-            return;
-        }
+        k_mutex_lock(&monitor_mutex, K_FOREVER);
 
         MsgPack::arr_t<uint8_t> message;
         RpcCall async_rpc = bridge->call(MON_READ_METHOD, size);

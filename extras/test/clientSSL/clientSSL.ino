@@ -1,3 +1,14 @@
+/*
+    This file is part of the Arduino_RouterBridge library.
+
+    Copyright (C) Arduino s.r.l. and/or its affiliated companies
+
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+*/
+
 #include <Arduino_RouterBridge.h>
 
 static const char ca_cert[] = {
@@ -19,15 +30,8 @@ static const char ca_cert[] = {
 BridgeTCPClient<> client(Bridge);
 
 void setup() {
-
-  if (!Bridge.begin()) {
-    while (true) {}
-  }
-
-  if (!Monitor.begin()) {
-    while (true) {}
-  }
-
+  Bridge.begin();
+  Monitor.begin(115200);
 }
 
 void loop() {
@@ -47,7 +51,7 @@ void loop() {
   w += client.println("Connection: close");
   w += client.println();
 
-  /* if there are incoming bytes available  from the server,
+  /* if there are incoming bytes available from the server,
    * read them and print them:
    */
   while (client.connected()) {

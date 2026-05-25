@@ -1,4 +1,15 @@
 /*
+    This file is part of the Arduino_RouterBridge library.
+
+    Copyright (C) Arduino s.r.l. and/or its affiliated companies
+
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+*/
+
+/*
   Udp NTP Client
 
   Get the time from a Network Time Protocol (NTP) time server
@@ -22,7 +33,7 @@ int NTP_PACKET_SIZE = 48;                  // NTP time stamp is in the first 48 
 BridgeUDP<4096> Udp(Bridge);
 
 void setup() {
-  Monitor.begin();
+  Monitor.begin(115200);
   Udp.begin(localPort);
 }
 
