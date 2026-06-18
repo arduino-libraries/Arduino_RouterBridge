@@ -25,6 +25,7 @@
 #include "bridge.h"
 
 #define DEFAULT_TCP_CLIENT_BUF_SIZE    512
+#define TCP_RESPONSE_HEADER_SIZE       20   // max size of msg_id plus RCP headers for a TCP response
 
 
 template<size_t BufferSize=DEFAULT_TCP_CLIENT_BUF_SIZE>
@@ -117,7 +118,7 @@ public:
 
     int available() override {
         k_mutex_lock(&client_mutex, K_FOREVER);
-        const int size = temp_buffer.availableForStore();
+        const int size = min(temp_buffer.availableForStore(), BRIDGE_RPC_BUFFER_SIZE - TCP_RESPONSE_HEADER_SIZE);
         if (size > 0) _read(size);
         const int _available = temp_buffer.available();
         k_mutex_unlock(&client_mutex);
