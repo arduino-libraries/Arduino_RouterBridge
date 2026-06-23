@@ -27,6 +27,7 @@ This file is part of the Arduino_RouterBridge library.
 #include <api/Udp.h>
 
 #define DEFAULT_UDP_BUF_SIZE    4096
+#define UDP_RESPONSE_HEADER_SIZE       20   // max size of msg_id plus RCP headers for a UDP response
 
 
 struct BridgeUdpMeta {
@@ -232,7 +233,7 @@ public:
 
     int available() override {
         k_mutex_lock(&udp_mutex, K_FOREVER);
-        const int size = temp_buffer.availableForStore();
+        const int size = min(temp_buffer.availableForStore(), BRIDGE_RPC_BUFFER_SIZE - UDP_RESPONSE_HEADER_SIZE);
         if (size > 0) _read(size);
         const int _available = temp_buffer.available();
         k_mutex_unlock(&udp_mutex);
