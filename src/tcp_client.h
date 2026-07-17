@@ -119,6 +119,9 @@ public:
         k_mutex_lock(&client_mutex, K_FOREVER);
         const bool ok = bridge->call(TCP_WRITE_METHOD, connection_id, payload).result(written);
         k_mutex_unlock(&client_mutex);
+        if (!ok) {
+            stop();
+        }
         return ok? written : 0;
     }
 
