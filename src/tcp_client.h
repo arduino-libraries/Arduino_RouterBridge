@@ -27,6 +27,7 @@
 #define DEFAULT_TCP_CLIENT_BUF_SIZE    512
 #define TCP_RESPONSE_HEADER_SIZE       20   // max size of msg_id plus RCP headers for a TCP response
 
+void disconnect_server(void* opaque_server);
 
 template<size_t BufferSize=DEFAULT_TCP_CLIENT_BUF_SIZE>
 class BridgeTCPClient : public Client {
@@ -37,11 +38,16 @@ class BridgeTCPClient : public Client {
     RingBufferN<BufferSize> temp_buffer;
     struct k_mutex client_mutex{};
     bool _connected = false;
+    void* opaque_server = nullptr;  // Pointer to the server that spawned this client, if any
 
 public:
     explicit BridgeTCPClient(BridgeClass& bridge): bridge(&bridge) {}
 
-    BridgeTCPClient(BridgeClass& bridge, uint32_t connection_id, bool connected=true): bridge(&bridge), connection_id(connection_id), _connected {connected} {}
+    BridgeTCPClient(BridgeClass& bridge, uint32_t connection_id, bool connected=false, void* opaque_server=nullptr): bridge(&bridge), connection_id(connection_id), _connected{connected}, opaque_server(opaque_server) {}
+
+    bool operator==(const BridgeTCPClient& whs) {
+        return connection_id == whs.connection_id;
+    }
 
     bool begin() {
         k_mutex_init(&client_mutex);
@@ -113,6 +119,9 @@ public:
         k_mutex_lock(&client_mutex, K_FOREVER);
         const bool ok = bridge->call(TCP_WRITE_METHOD, connection_id, payload).result(written);
         k_mutex_unlock(&client_mutex);
+        if (!ok) {
+            stop();
+        }
         return ok? written : 0;
     }
 
@@ -127,6 +136,9 @@ public:
 
     int read() override {
         uint8_t c;
+        if (!temp_buffer.available()) {
+            return -1;
+        }
         read(&c, 1);
         return c;
     }
@@ -164,6 +176,9 @@ public:
         String msg;
         if (_connected) {
             _connected = !bridge->call(TCP_CLOSE_METHOD, connection_id).result(msg);
+        }
+        if (opaque_server) {
+            disconnect_server(opaque_server);
         }
         k_mutex_unlock(&client_mutex);
     }
@@ -219,7 +234,6 @@ private:
 
         k_mutex_unlock(&client_mutex);
     }
-
 };
 
 

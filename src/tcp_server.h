@@ -64,12 +64,12 @@ public:
 
         if (!_listening) {  // Not listening -> return disconnected (invalid) client
             k_mutex_unlock(&server_mutex);
-            return BridgeTCPClient<BufferSize>(*bridge, 0, false);
+            return BridgeTCPClient<BufferSize>(*bridge, 0, false, this);
         }
 
         if (_connected) {   // Connection already established return a client copy
             k_mutex_unlock(&server_mutex);
-            return BridgeTCPClient<BufferSize>(*bridge, connection_id);
+            return BridgeTCPClient<BufferSize>(*bridge, connection_id, true, this);
         }
 
         // Accept a connection
@@ -77,8 +77,9 @@ public:
         _connected = ret;
 
         k_mutex_unlock(&server_mutex);
+
         // If no connection established return a disconnected (invalid) client
-        return ret? BridgeTCPClient<BufferSize>(*bridge, connection_id) : BridgeTCPClient<BufferSize>(*bridge, 0, false);
+        return ret? BridgeTCPClient<BufferSize>(*bridge, connection_id, true, this) : BridgeTCPClient<BufferSize>(*bridge, 0, false, this);
     }
 
     size_t write(uint8_t c) override {
@@ -151,5 +152,14 @@ public:
     using Print::write;
 
 };
+
+inline void disconnect_server(void* opaque_server) {
+
+    if (opaque_server) {
+        auto server = static_cast<BridgeTCPServer<>*>(opaque_server);
+        server->disconnect();
+    }
+}
+
 
 #endif //BRIDGE_TCP_SERVER_H
