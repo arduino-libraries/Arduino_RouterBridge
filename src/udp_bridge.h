@@ -242,6 +242,9 @@ public:
 
     int read() override {
         uint8_t c;
+        if (!temp_buffer.available() && !available()) {
+            return -1;
+        }
         read(&c, 1);
         return c;
     }
