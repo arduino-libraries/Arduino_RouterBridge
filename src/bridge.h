@@ -21,7 +21,10 @@
 
 //#define BRIDGE_ERROR "$/bridgeLog"
 
-#define UPDATE_THREAD_STACK_SIZE    500
+#ifndef UPDATE_THREAD_STACK_SIZE
+#define UPDATE_THREAD_STACK_SIZE    2048
+#endif
+
 #define UPDATE_THREAD_PRIORITY      5
 
 #define DEFAULT_SERIAL_BAUD         115200
