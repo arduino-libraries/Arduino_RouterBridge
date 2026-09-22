@@ -350,6 +350,9 @@ void setup() {
     Monitor.println("==========================================");
     Monitor.println("BridgeUDP Test Suite");
     Monitor.println("==========================================");
+    Monitor.println("==========================================");
+    Monitor.println("WARNING: RESTART arduino-router.service BEFORE RUNNING THIS TEST");
+    Monitor.println("==========================================");
     Monitor.println("Waiting 5s for the other side");
     delay(5000);
 
@@ -382,5 +385,11 @@ void setup() {
 
 void loop() {
     // Test suite runs once in setup()
+    static unsigned long lastPrint = 0;
+    if (millis() - lastPrint > 2000)
+    {
+        lastPrint = millis();
+        Serial1.println("runnin");
+    }
     delay(1000);
 }
