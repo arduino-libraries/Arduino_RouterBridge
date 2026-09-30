@@ -26,6 +26,8 @@
 
 #define DEFAULT_SERIAL_BAUD         115200
 #define BRIDGE_RPC_BUFFER_SIZE      DEFAULT_RPC_BUFFER_SIZE
+#define DECODER_BUFF_OVERFILL_PERC  75
+#define CLIENT_RESYNC_LIMIT          100
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
@@ -109,6 +111,10 @@ public:
                     setError(temp_err.code, temp_err.traceback);
                     break;
                 }
+                if (client_resync()) {
+                    setError(GENERIC_ERR, "client gave up and resynced");
+                    break;
+                };
                 k_mutex_unlock(read_mutex);
                 k_msleep(1);
             } else {
@@ -133,6 +139,19 @@ public:
     }
 
 private:
+
+    bool client_resync() {
+        static int resync_count = 0;
+        if (client->get_decoder()->packet_incoming()) {resync_count = 0; return false;}
+        resync_count++;
+        if (resync_count > CLIENT_RESYNC_LIMIT) {
+            client->get_decoder()->resync();
+            resync_count = 0;
+            return true;
+        }
+        return false;
+    }
+
     uint32_t msg_id_wait{};
     atomic_t _executed = ATOMIC_INIT(0);;
 
@@ -160,6 +179,8 @@ class BridgeClass {
     struct k_thread upd_thread_data{};
 
     bool started = false;
+
+    size_t overfill_limit{};
 
 public:
 
@@ -200,6 +221,8 @@ public:
 
         client = new RPCClient(*transport);
         server = new RPCServer(*transport);
+
+        overfill_limit = server->get_decoder()->buffer_size() * DECODER_BUFF_OVERFILL_PERC / 100;
 
         upd_stack_area = k_thread_stack_alloc(UPDATE_THREAD_STACK_SIZE, 0);
         upd_tid = k_thread_create(&upd_thread_data, upd_stack_area,
@@ -245,6 +268,7 @@ public:
 
         RPCRequest<BRIDGE_RPC_BUFFER_SIZE> req;
         if (!server->get_rpc(req)) {
+            overfill_resync();
             k_mutex_unlock(&read_mutex);
             k_msleep(1);
             return;
@@ -288,6 +312,13 @@ public:
 
 private:
 
+    void overfill_resync() {
+        if (server->get_decoder()->size() < overfill_limit) return;
+        if (server->get_decoder()->packet_incoming()) return;
+        if (server->get_decoder()->response_queued()) return;
+        server->get_decoder()->resync();
+    }
+
     void update_safe() {
 
         // Lock read mutex
@@ -295,6 +326,7 @@ private:
 
         RPCRequest<BRIDGE_RPC_BUFFER_SIZE> req;
         if (!server->get_rpc(req, "__safe__")) {
+            overfill_resync();
             k_mutex_unlock(&read_mutex);
             k_msleep(1);
             return;
