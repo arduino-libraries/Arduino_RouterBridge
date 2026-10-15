@@ -350,6 +350,9 @@ void setup() {
     Monitor.println("==========================================");
     Monitor.println("BridgeUDP Test Suite");
     Monitor.println("==========================================");
+    Monitor.println("==========================================");
+    Monitor.println("WARNING: RESTART arduino-router.service BEFORE RUNNING THIS TEST");
+    Monitor.println("==========================================");
     Monitor.println("Waiting 5s for the other side");
     delay(5000);
 
