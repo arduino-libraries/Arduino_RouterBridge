@@ -22,7 +22,7 @@
 //#define BRIDGE_ERROR "$/bridgeLog"
 
 #ifndef UPDATE_THREAD_STACK_SIZE
-#define UPDATE_THREAD_STACK_SIZE    2048
+#define UPDATE_THREAD_STACK_SIZE    4096
 #endif
 
 #define UPDATE_THREAD_PRIORITY      5

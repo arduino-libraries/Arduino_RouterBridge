@@ -385,11 +385,5 @@ void setup() {
 
 void loop() {
     // Test suite runs once in setup()
-    static unsigned long lastPrint = 0;
-    if (millis() - lastPrint > 2000)
-    {
-        lastPrint = millis();
-        Serial1.println("runnin");
-    }
     delay(1000);
 }
