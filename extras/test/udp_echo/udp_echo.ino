@@ -50,6 +50,9 @@ void setup() {
     Monitor.println("\n===========================================");
     Monitor.println("UDP Echo Test");
     Monitor.println("===========================================");
+    Monitor.println("==========================================");
+    Monitor.println("WARNING: RESTART arduino-router.service BEFORE RUNNING THIS TEST");
+    Monitor.println("==========================================");
 
     Monitor.println("Waiting 5s for the other side");
     delay(5000);

@@ -293,6 +293,9 @@ if __name__ == "__main__":
     # threading.Thread(target=lambda: send_test_packets_loop("192.168.1.100", 8888), daemon=True).start()
 
     print("UDP Bridge Server ready")
+    print("=======================")
+    print("WARNING RESTART arduino-router.service BEFORE RUNNING THIS TEST")
+    print("=======================")
     print("Available methods:")
     print("  - udp/connect")
     print("  - udp/connectMulticast")
