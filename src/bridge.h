@@ -50,8 +50,16 @@ enum class BridgeProtocol {
     Reliable,
 };
 
+// Default protocol: the UNO Q talks to the router over a real UART, that
+// needs the integrity check and the flow control of the seriallink protocol.
+// Other boards (e.g. the VENTUNO Q) use a serial port emulated over USB, that
+// is already reliable.
 #ifndef BRIDGE_DEFAULT_PROTOCOL
+#if defined(ARDUINO_UNO_Q)
+#define BRIDGE_DEFAULT_PROTOCOL BridgeProtocol::Reliable
+#else
 #define BRIDGE_DEFAULT_PROTOCOL BridgeProtocol::Raw
+#endif
 #endif
 
 
