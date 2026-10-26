@@ -28,6 +28,10 @@
 #define UPDATE_THREAD_PRIORITY      5
 
 #define DEFAULT_SERIAL_BAUD         115200
+// With BridgeProtocol::Reliable every session starts at this rate.
+#ifndef BRIDGE_BASE_BAUD
+#define BRIDGE_BASE_BAUD            115200
+#endif
 #define BRIDGE_RPC_BUFFER_SIZE      DEFAULT_RPC_BUFFER_SIZE
 
 #include <zephyr/kernel.h>
@@ -47,6 +51,9 @@ enum class BridgeProtocol {
     // retransmission and flow control. If the router restarts, the session
     // is re-established and the provided methods are registered again.
     // Requires a router with --serial-protocol set to "reliable" (or "auto").
+    // The serial port starts at BRIDGE_BASE_BAUD, then the highest rate
+    // supported by both sides (up to the baud passed to begin() and to the
+    // router --serial-max-baudrate) is negotiated.
     Reliable,
 };
 
@@ -219,7 +226,10 @@ public:
         return out;
     }
 
-    // Initialize the bridge
+    // Initialize the bridge. With BridgeProtocol::Raw, baud is the rate of the
+    // serial port. With BridgeProtocol::Reliable, it is the maximum rate that
+    // can be negotiated with the router (every session starts at
+    // BRIDGE_BASE_BAUD).
     bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD, BridgeProtocol protocol=BRIDGE_DEFAULT_PROTOCOL) {
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
@@ -229,13 +239,13 @@ public:
 
         k_mutex_lock(&bridge_mutex, K_FOREVER);
 
-        serial_ptr->begin(baud);
+        serial_ptr->begin(protocol == BridgeProtocol::Reliable ? BRIDGE_BASE_BAUD : baud);
         while (!*serial_ptr){
             k_yield();
         }
         if (protocol == BridgeProtocol::Reliable) {
             link_transport = new SerialLinkTransport(*serial_ptr);
-            link_transport->begin();
+            link_transport->begin(BRIDGE_BASE_BAUD, baud);
             transport = link_transport;
         } else {
             transport = new SerialTransport(*serial_ptr);

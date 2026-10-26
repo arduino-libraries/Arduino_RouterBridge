@@ -42,6 +42,9 @@
 // message across two sessions: if the session is reset while writing, the
 // rest of the message is dropped, and lastWriteSession() tells in which
 // session the last message was sent.
+//
+// Baud rate: every session starts at the base rate, then the link may switch
+// to a faster rate negotiated with the router (see begin()).
 class SerialLinkTransport final : public ITransport {
 
     HardwareSerial* serial;
@@ -67,9 +70,14 @@ public:
         k_condvar_init(&cond);
     }
 
-    // Starts the protocol thread. The serial port must already be open.
-    void begin() {
+    // Starts the protocol thread. The serial port must already be open at
+    // baseBaud. If maxBaud is higher than baseBaud, the link negotiates with
+    // the router the highest rate supported by both, up to maxBaud.
+    void begin(uint32_t baseBaud, uint32_t maxBaud) {
         k_mutex_lock(&mutex, K_FOREVER);
+        if (maxBaud > baseBaud) {
+            link.setBaudRates(set_baud, baseBaud, seriallink::baudRateMask(baseBaud, maxBaud));
+        }
         link.begin(new_nonce(), k_uptime_get_32());
         k_mutex_unlock(&mutex);
 
@@ -106,6 +114,14 @@ public:
     bool connected() {
         k_mutex_lock(&mutex, K_FOREVER);
         const bool out = ready();
+        k_mutex_unlock(&mutex);
+        return out;
+    }
+
+    // Current baud rate of the serial port.
+    uint32_t baudRate() {
+        k_mutex_lock(&mutex, K_FOREVER);
+        const uint32_t out = link.baudRate();
         k_mutex_unlock(&mutex);
         return out;
     }
@@ -169,6 +185,14 @@ private:
 
     static void output(void* ctx, const uint8_t* data, size_t len) {
         static_cast<SerialLinkTransport*>(ctx)->serial->write(data, len);
+    }
+
+    // Called by the link with the mutex held. begin() also clears the RX
+    // buffer: what is in there has been received at the old rate.
+    static void set_baud(void* ctx, uint32_t rate) {
+        HardwareSerial* serial = static_cast<SerialLinkTransport*>(ctx)->serial;
+        serial->flush(); // wait until everything has been transmitted
+        serial->begin(rate);
     }
 
     static void thread_entry(void* p1, void*, void*) {
