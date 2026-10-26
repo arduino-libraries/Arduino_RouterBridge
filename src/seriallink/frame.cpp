@@ -17,6 +17,26 @@
 
 namespace seriallink {
 
+const uint32_t BAUD_RATES[BAUD_RATES_COUNT] = {
+    115200, 230400, 460800, 500000, 576000, 921600, 1000000,
+    1152000, 1500000, 2000000, 2500000, 3000000, 3500000, 4000000,
+};
+
+uint16_t baudRateMask(uint32_t base, uint32_t maxRate) {
+    uint16_t mask = 0;
+    for (size_t i = 0; i < BAUD_RATES_COUNT; i++) {
+        if (BAUD_RATES[i] > base && BAUD_RATES[i] <= maxRate) mask |= uint16_t(1u << i);
+    }
+    return mask;
+}
+
+uint32_t highestBaudRate(uint16_t mask) {
+    for (size_t i = BAUD_RATES_COUNT; i-- > 0;) {
+        if (mask & (1u << i)) return BAUD_RATES[i];
+    }
+    return 0;
+}
+
 void putUint32(uint8_t* b, uint32_t v) {
     b[0] = v;
     b[1] = v >> 8;
@@ -64,17 +84,27 @@ size_t marshalSyn(const SynParams& p, bool withEcho, uint8_t* out) {
     out[1] = p.maxPayload >> 8;
     out[2] = p.window;
     putUint32(out + 3, p.nonce);
-    if (!withEcho) return SYN_SIZE;
-    putUint32(out + 7, p.echo);
-    return SYN_ACK_SIZE;
+    size_t n = SYN_SIZE;
+    if (withEcho) {
+        putUint32(out + n, p.echo);
+        n = SYN_ACK_SIZE;
+    }
+    if (p.baudRates != 0) {
+        out[n++] = uint8_t(p.baudRates);
+        out[n++] = uint8_t(p.baudRates >> 8);
+    }
+    return n;
 }
 
 bool parseSyn(const uint8_t* b, size_t len, bool withEcho, SynParams& p) {
-    if (len != (withEcho ? SYN_ACK_SIZE : SYN_SIZE)) return false;
+    const size_t size = withEcho ? SYN_ACK_SIZE : SYN_SIZE;
+    if (len < size) return false;
     p.maxPayload = uint16_t(b[0] | b[1] << 8);
     p.window = b[2];
     p.nonce = getUint32(b + 3);
     p.echo = withEcho ? getUint32(b + 7) : 0;
+    p.baudRates = 0;
+    if (len >= size + BAUD_RATES_SIZE) p.baudRates = uint16_t(b[size] | b[size + 1] << 8) & BAUD_RATES_VALID;
     if (p.maxPayload < 1 || p.maxPayload > MAX_PAYLOAD_LIMIT) return false;
     if (p.window < 1 || p.window > MAX_WINDOW_LIMIT) return false;
     return true;

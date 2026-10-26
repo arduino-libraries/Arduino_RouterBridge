@@ -134,14 +134,14 @@ static Bytes encodeFrame(const Frame& f) {
 
 static void testFrameGolden() {
     // Frames encoded by the Go implementation (internal/seriallink)
-    uint8_t p[SYN_ACK_SIZE];
+    uint8_t p[CONTROL_PAYLOAD_LIMIT];
 
-    SynParams syn{256, 8, 0xDEADBEEF, 0};
+    SynParams syn{256, 8, 0xDEADBEEF, 0, 0};
     size_t n = marshalSyn(syn, false, p);
     CHECK(encodeFrame({FrameType::Syn, 0, 0, 0, p, n}) ==
           Bytes({0x02, 0x14, 0x01, 0x01, 0x01, 0x0B, 0x01, 0x08, 0xEF, 0xBE, 0xAD, 0xDE, 0xC2, 0x21, 0x9A, 0xB5, 0x00}));
 
-    SynParams synAck{128, 4, 0x01020304, 0xDEADBEEF};
+    SynParams synAck{128, 4, 0x01020304, 0xDEADBEEF, 0};
     n = marshalSyn(synAck, true, p);
     CHECK(encodeFrame({FrameType::SynAck, 0, 0, 0, p, n}) ==
           Bytes({0x02, 0x15, 0x01, 0x01, 0x02, 0x80, 0x0E, 0x04, 0x04, 0x03, 0x02, 0x01, 0xEF, 0xBE, 0xAD, 0xDE, 0x6F, 0x65, 0x2F, 0x74, 0x00}));
@@ -152,6 +152,16 @@ static void testFrameGolden() {
 
     CHECK(encodeFrame({FrameType::Ack, 0, 5, 8, nullptr, 0}) == Bytes({0x02, 0x12, 0x07, 0x05, 0x08, 0x7F, 0x3C, 0xF8, 0xA8, 0x00}));
     CHECK(encodeFrame({FrameType::Nak, 0, 255, 0, nullptr, 0}) == Bytes({0x02, 0x13, 0x02, 0xFF, 0x05, 0x1F, 0xDA, 0xCC, 0xF0, 0x00}));
+
+    // With the baud rate mask
+    syn.baudRates = 0x0123;
+    n = marshalSyn(syn, false, p);
+    CHECK(encodeFrame({FrameType::Syn, 0, 0, 0, p, n}) ==
+          Bytes({0x02, 0x14, 0x01, 0x01, 0x01, 0x09, 0x01, 0x08, 0xEF, 0xBE, 0xAD, 0xDE, 0x23, 0x01, 0x04, 0x45, 0xD2, 0x3D, 0x00}));
+    synAck.baudRates = 0x3FFE;
+    n = marshalSyn(synAck, true, p);
+    CHECK(encodeFrame({FrameType::SynAck, 0, 0, 0, p, n}) ==
+          Bytes({0x02, 0x15, 0x01, 0x01, 0x02, 0x80, 0x10, 0x04, 0x04, 0x03, 0x02, 0x01, 0xEF, 0xBE, 0xAD, 0xDE, 0xFE, 0x3F, 0x61, 0x65, 0x3D, 0xA2, 0x00}));
 
     putUint32(p, 0xDEADBEEF);
     CHECK(encodeFrame({FrameType::Rst, 0, 0, 0, p, RST_SIZE}) ==
@@ -184,32 +194,66 @@ static void testFrameGolden() {
 }
 
 static void testSynParams() {
-    uint8_t p[SYN_ACK_SIZE];
-    SynParams in{256, 8, 0xDEADBEEF, 0x12345678}, out;
+    uint8_t p[CONTROL_PAYLOAD_LIMIT];
+    SynParams in{256, 8, 0xDEADBEEF, 0x12345678, 0}, out;
     CHECK(parseSyn(p, marshalSyn(in, true, p), true, out));
     CHECK(out.maxPayload == 256 && out.window == 8 && out.nonce == 0xDEADBEEF && out.echo == 0x12345678);
     CHECK(parseSyn(p, marshalSyn(in, false, p), false, out) && out.echo == 0);
     CHECK(!parseSyn(p, SYN_SIZE, true, out));
-    SynParams bad{256, 200, 1, 0};
+    SynParams bad{256, 200, 1, 0, 0};
     CHECK(!parseSyn(p, marshalSyn(bad, false, p), false, out));
+
+    // Optional fields and extensions
+    in.baudRates = 0x0123;
+    for (bool withEcho : {false, true}) {
+        const size_t n = marshalSyn(in, withEcho, p);
+        CHECK(n == (withEcho ? SYN_ACK_SIZE : SYN_SIZE) + BAUD_RATES_SIZE);
+        CHECK(parseSyn(p, n, withEcho, out) && out.baudRates == 0x0123 && out.nonce == 0xDEADBEEF);
+        CHECK(parseSyn(p, n + 3, withEcho, out) && out.baudRates == 0x0123); // unknown trailing bytes
+        CHECK(parseSyn(p, n - 1, withEcho, out) && out.baudRates == 0);      // truncated optional field
+        CHECK(parseSyn(p, n - 2, withEcho, out) && out.baudRates == 0);      // no optional field
+    }
+    in.baudRates = 0xFFFF; // reserved bits are ignored
+    CHECK(parseSyn(p, marshalSyn(in, false, p), false, out) && out.baudRates == BAUD_RATES_VALID);
+}
+
+static void testBaudRateMask() {
+    CHECK(baudRateMask(115200, 0) == 0);
+    CHECK(baudRateMask(115200, 115200) == 0);
+    CHECK(baudRateMask(115200, 230400) == 0x0002);
+    CHECK(baudRateMask(115200, 1000000 - 1) == 0x003E);
+    CHECK(baudRateMask(115200, 10000000) == 0x3FFE);
+    CHECK(baudRateMask(9600, 10000000) == 0x3FFF);
+    CHECK(highestBaudRate(baudRateMask(115200, 2000000) & baudRateMask(115200, 921600)) == 921600);
+    CHECK(highestBaudRate(0) == 0);
 }
 
 // --- Link simulation ----------------------------------------------------------
 
 // One direction of a simulated serial line, with fault injection and a
 // throughput limit (115200 baud are about 11.5 bytes/ms).
+// Each side has a baud rate: bytes sent while the two sides are at different
+// rates are received as garbage.
 struct Wire {
     Bytes buf;
     std::mt19937 rng;
     double flip = 0, drop = 0, dup = 0, garbage = 0;
     bool blackhole = false;
+    uint32_t* txRate; // rate of the sending side
+    uint32_t* rxRate; // rate of the receiving side
+    uint32_t brokenRate = 0; // a rate that the sending side can not generate accurately
+    bool deadAboveBase = false; // nothing goes through while the sending side is above 115200
 
-    explicit Wire(uint32_t seed) : rng(seed) {}
+    Wire(uint32_t seed, uint32_t* txRate, uint32_t* rxRate) : rng(seed), txRate(txRate), rxRate(rxRate) {}
 
     double rand01() { return std::uniform_real_distribution<double>(0, 1)(rng); }
 
     void send(const uint8_t* data, size_t len) {
         if (blackhole) return;
+        if (*txRate != *rxRate) {
+            for (size_t i = 0; i < len; i++) buf.push_back(uint8_t(rng()));
+            return;
+        }
         for (size_t i = 0; i < len; i++) {
             uint8_t b = data[i];
             if (rand01() < garbage) buf.push_back(uint8_t(rng()));
@@ -223,6 +267,12 @@ struct Wire {
     static void output(void* ctx, const uint8_t* data, size_t len) {
         static_cast<Wire*>(ctx)->send(data, len);
     }
+
+    static void setBaudRate(void* ctx, uint32_t rate) {
+        Wire* w = static_cast<Wire*>(ctx);
+        *w->txRate = rate == w->brokenRate ? rate + 1 : rate;
+        if (w->deadAboveBase) w->blackhole = rate > 115200;
+    }
 };
 
 static Timing testTiming() {
@@ -234,7 +284,8 @@ static Timing testTiming() {
 struct Sim {
     static constexpr size_t BYTES_PER_MS = 12;
     uint32_t now = 0x7FFFF000; // close to a wrap around of int32 to test the timers arithmetic
-    Wire ab{1}, ba{2};
+    uint32_t rateA = 115200, rateB = 115200;
+    Wire ab{1, &rateA, &rateB}, ba{2, &rateB, &rateA};
     Link a, b;
 
     explicit Sim(const Timing& timing = testTiming())
@@ -458,12 +509,158 @@ static void testInvalidInput() {
     CHECK(exchange(sim, 1000, 5000));
 }
 
+// --- Baud rate negotiation ---------------------------------------------------
+
+// Enables the baud rate negotiation on both sides and restarts the sessions.
+static void enableBaud(Sim& sim, uint32_t maxA, uint32_t maxB) {
+    sim.a.setBaudRates(Wire::setBaudRate, 115200, baudRateMask(115200, maxA));
+    sim.b.setBaudRates(Wire::setBaudRate, 115200, baudRateMask(115200, maxB));
+    sim.a.begin(0x11111111, sim.now);
+    sim.b.begin(0x22222222, sim.now);
+}
+
+static bool atBaudRate(Sim& sim, uint32_t rate) {
+    return sim.runUntil([&] {
+        return sim.rateA == rate && sim.rateB == rate && sim.a.baudRate() == rate && sim.b.baudRate() == rate &&
+               sim.a.stats().baudSwitches > 0 && sim.b.stats().baudSwitches > 0;
+    }, 2000);
+}
+
+static void testBaudRateNegotiation() {
+    Sim sim;
+    enableBaud(sim, 2000000, 921600);
+    // Data is written right away: what is lost during the switch is retransmitted
+    CHECK(sim.established());
+    CHECK(exchange(sim, 64 * 1024, 30000));
+    CHECK(atBaudRate(sim, 921600));
+    for (Link* l : {&sim.a, &sim.b}) {
+        CHECK(l->stats().baudSwitches == 1);
+        CHECK(l->stats().baudFailures == 0);
+        CHECK(l->stats().baudFallbacks == 0);
+    }
+}
+
+static void testBaudRateNotNegotiated() {
+    for (uint32_t maxB : {0u, 115200u}) {
+        Sim sim;
+        enableBaud(sim, 2000000, maxB);
+        CHECK(sim.established());
+        CHECK(exchange(sim, 16 * 1024, 30000));
+        CHECK(sim.rateA == 115200 && sim.rateB == 115200);
+        CHECK(sim.a.stats().baudSwitches == 0);
+    }
+    // Negotiation disabled on one side (no baud rate mask in its SYN)
+    Sim sim;
+    sim.a.setBaudRates(Wire::setBaudRate, 115200, baudRateMask(115200, 2000000));
+    sim.a.begin(0x11111111, sim.now);
+    CHECK(sim.established());
+    CHECK(exchange(sim, 16 * 1024, 30000));
+    CHECK(sim.rateA == 115200 && sim.a.stats().baudSwitches == 0);
+}
+
+static void testBaudRateNoisyLine() {
+    // The frames that trigger and confirm the switch may be lost
+    Sim sim;
+    sim.setFaults(1e-2, 1e-2, 0, 0); // ~30% of the control frames lost
+    uint32_t switchFailures = 0;
+    for (uint32_t i = 0; i < 30; i++) {
+        sim.a.setBaudRates(Wire::setBaudRate, 115200, baudRateMask(115200, 1000000));
+        sim.b.setBaudRates(Wire::setBaudRate, 115200, baudRateMask(115200, 1000000));
+        sim.a.begin(0x1000 + i, sim.now);
+        sim.b.begin(0x2000 + i, sim.now);
+        CHECK(sim.established());
+        CHECK(exchange(sim, 16, 30000)); // small data frames, or most of them would be lost
+        CHECK(atBaudRate(sim, 1000000));
+        switchFailures += sim.a.stats().baudFailures + sim.b.stats().baudFailures;
+    }
+    std::printf("  %u failed switches\n", switchFailures);
+}
+
+static void testBaudRateSilenceFallback() {
+    Sim sim;
+    enableBaud(sim, 921600, 921600);
+    CHECK(sim.established());
+    CHECK(atBaudRate(sim, 921600));
+
+    // The line goes silent for less than the link timeout: both sides fall
+    // back to the base rate, and switch again when the line comes back
+    sim.ab.blackhole = sim.ba.blackhole = true;
+    CHECK(sim.runUntil([&] { return sim.rateA == 115200 && sim.rateB == 115200; }, 3 * testTiming().keepAliveMs));
+    sim.ab.blackhole = sim.ba.blackhole = false;
+    CHECK(sim.runUntil([&] { return sim.a.stats().baudSwitches == 2 && sim.b.stats().baudSwitches == 2; }, 3000));
+    CHECK(exchange(sim, 16 * 1024, 30000));
+    CHECK(sim.a.stats().baudFallbacks == 1 && sim.b.stats().baudFallbacks == 1);
+    CHECK(sim.a.state() == State::Established && sim.b.state() == State::Established);
+}
+
+static void testBaudRatePeerReboot() {
+    Sim sim;
+    enableBaud(sim, 921600, 921600);
+    CHECK(sim.established());
+    CHECK(atBaudRate(sim, 921600));
+
+    // B reboots (back at the base rate): A must detect it before the link timeout
+    const uint32_t start = sim.now;
+    sim.b.begin(0x33333333, sim.now);
+    CHECK(sim.rateB == 115200);
+    CHECK(sim.runUntil([&] { return sim.a.state() == State::Closed; }, 10000));
+    CHECK(sim.a.error() == Error::SessionReset);
+    CHECK(sim.now - start < testTiming().linkTimeoutMs);
+    CHECK(sim.rateA == 115200 || sim.a.stats().baudFallbacks == 1);
+
+    sim.a.begin(0x44444444, sim.now);
+    CHECK(sim.rateA == 115200);
+    CHECK(sim.established());
+    CHECK(atBaudRate(sim, 921600));
+    CHECK(exchange(sim, 16 * 1024, 30000));
+}
+
+static void testBaudRateBroken() {
+    // The negotiated rate does not work: the session is reset, and the next
+    // one fails the same way (the rate is not lowered automatically)
+    Sim sim;
+    sim.ab.brokenRate = 921600;
+    enableBaud(sim, 2000000, 921600);
+    for (int i = 0; i < 2; i++) {
+        CHECK(sim.established());
+        CHECK(sim.runUntil([&] { return sim.a.state() == State::Closed; }, 20000));
+        CHECK(sim.a.error() == Error::BaudRate);
+        CHECK(sim.rateA == 115200);
+        sim.a.begin(0x5555 + i, sim.now);
+        CHECK(sim.runUntil([&] { return sim.b.state() != State::Established; }, 10000));
+        sim.b.begin(0x6666 + i, sim.now);
+    }
+
+    // Lowering the max rate fixes it
+    enableBaud(sim, 576000, 921600);
+    CHECK(sim.established());
+    CHECK(atBaudRate(sim, 576000));
+    CHECK(exchange(sim, 16 * 1024, 30000));
+}
+
+static void testBaudRateBrokenOneWay() {
+    // At the negotiated rate only B->A works: A confirms the switch, B does
+    // not. The session must fail anyway.
+    Sim sim;
+    sim.ab.deadAboveBase = true;
+    enableBaud(sim, 921600, 921600);
+    CHECK(sim.established());
+    // Every attempt takes about 2.5s: A falls back only after two keep-alive
+    // intervals of silence
+    const uint32_t start = sim.now;
+    CHECK(sim.runUntil([&] { return sim.b.state() == State::Closed; }, 30000));
+    std::printf("  failed after %u ms\n", sim.now - start);
+    CHECK(sim.b.error() == Error::BaudRate);
+    CHECK(sim.a.stats().baudSwitches > 0);
+}
+
 int main() {
     struct { const char* name; std::function<void()> fn; } tests[] = {
         {"CRC32", testCRC32},
         {"COBS", testCOBS},
         {"FrameGolden", testFrameGolden},
         {"SynParams", testSynParams},
+        {"BaudRateMask", testBaudRateMask},
         {"CleanLine", testCleanLine},
         {"NoisyLine", testNoisyLine},
         {"PeerStartsLater", testPeerStartsLater},
@@ -475,6 +672,13 @@ int main() {
         {"LinkTimeout", testLinkTimeout},
         {"RetriesExhausted", testRetriesExhausted},
         {"InvalidInput", testInvalidInput},
+        {"BaudRateNegotiation", testBaudRateNegotiation},
+        {"BaudRateNotNegotiated", testBaudRateNotNegotiated},
+        {"BaudRateNoisyLine", testBaudRateNoisyLine},
+        {"BaudRateSilenceFallback", testBaudRateSilenceFallback},
+        {"BaudRatePeerReboot", testBaudRatePeerReboot},
+        {"BaudRateBroken", testBaudRateBroken},
+        {"BaudRateBrokenOneWay", testBaudRateBrokenOneWay},
     };
     for (const auto& t : tests) {
         currentTest = t.name;

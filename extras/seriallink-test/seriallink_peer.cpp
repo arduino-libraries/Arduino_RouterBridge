@@ -18,6 +18,12 @@
 // Events are logged on stderr. On EOF on stdin the session is closed
 // (notifying the peer with a RST) and the program exits.
 //
+// With --max-baud the baud rate negotiation is enabled (base rate 115200),
+// and stdout becomes a stream of records, so that the test harness can apply
+// the baud rate changes in order with the data:
+//   'D' len(u16 LE) data   bytes written to the serial port
+//   'B' rate(u32 LE)       the serial port baud rate changes
+//
 // Usage: seriallink_peer [options]
 //   --nonce N          use always the nonce N (default: random)
 //   --stall MS         do not read from the link for MS ms after the first
@@ -27,6 +33,9 @@
 //   --ack-delay MS     acknowledgement delay
 //   --keepalive MS     keep-alive interval
 //   --link-timeout MS  link timeout
+//   --max-baud RATE    enable the baud rate negotiation, up to RATE
+//   --broken-baud RATE pretend that the serial port can not generate RATE
+//                      accurately (the harness gets RATE+1)
 
 #include <chrono>
 #include <cerrno>
@@ -50,7 +59,10 @@ static uint32_t nowMs() {
     return uint32_t(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
 }
 
-static void output(void*, const uint8_t* data, size_t len) {
+static bool records = false;
+static uint32_t brokenBaud = 0;
+
+static void writeAll(const uint8_t* data, size_t len) {
     while (len > 0) {
         const ssize_t n = ::write(STDOUT_FILENO, data, len);
         if (n < 0) {
@@ -63,19 +75,43 @@ static void output(void*, const uint8_t* data, size_t len) {
     }
 }
 
+static void output(void*, const uint8_t* data, size_t len) {
+    if (!records) {
+        writeAll(data, len);
+        return;
+    }
+    while (len > 0) {
+        const size_t n = len > 0xFFFF ? 0xFFFF : len;
+        const uint8_t hdr[3] = {'D', uint8_t(n), uint8_t(n >> 8)};
+        writeAll(hdr, sizeof(hdr));
+        writeAll(data, n);
+        data += n;
+        len -= n;
+    }
+}
+
+static void setBaudRate(void*, uint32_t rate) {
+    std::fprintf(stderr, "peer: baud rate %u\n", rate);
+    if (rate == brokenBaud) rate++;
+    uint8_t rec[5] = {'B'};
+    putUint32(rec + 1, rate);
+    writeAll(rec, sizeof(rec));
+}
+
 static const char* errorName(Error e) {
     switch (e) {
     case Error::None: return "none";
     case Error::Closed: return "closed";
     case Error::SessionReset: return "session reset";
     case Error::LinkTimeout: return "link timeout";
+    case Error::BaudRate: return "baud rate not working";
     }
     return "?";
 }
 
 static void usage() {
     std::fprintf(stderr, "usage: seriallink_peer [--nonce N] [--stall MS] [--rto MS] [--max-retries N]"
-                         " [--ack-delay MS] [--keepalive MS] [--link-timeout MS]\n");
+                         " [--ack-delay MS] [--keepalive MS] [--link-timeout MS] [--max-baud RATE] [--broken-baud RATE]\n");
     std::exit(2);
 }
 
@@ -86,6 +122,7 @@ int main(int argc, char** argv) {
     bool fixedNonce = false;
     uint32_t nonceArg = 0;
     uint32_t stallMs = 0;
+    uint32_t maxBaud = 0;
     for (int i = 1; i < argc; i++) {
         const std::string arg = argv[i];
         if (i + 1 >= argc) usage();
@@ -105,6 +142,11 @@ int main(int argc, char** argv) {
             timing.keepAliveMs = uint32_t(v);
         } else if (arg == "--link-timeout") {
             timing.linkTimeoutMs = uint32_t(v);
+        } else if (arg == "--max-baud") {
+            maxBaud = uint32_t(v);
+            records = true;
+        } else if (arg == "--broken-baud") {
+            brokenBaud = uint32_t(v);
         } else {
             usage();
         }
@@ -114,6 +156,7 @@ int main(int argc, char** argv) {
     auto newNonce = [&] { return fixedNonce ? nonceArg : uint32_t(rd()); };
 
     Link link(output, nullptr, timing);
+    if (maxBaud > 0) link.setBaudRates(setBaudRate, 115200, baudRateMask(115200, maxBaud));
     link.begin(newNonce(), nowMs());
 
     std::vector<uint8_t> pending; // received bytes not yet accepted by link.write()
@@ -177,8 +220,10 @@ int main(int argc, char** argv) {
             link.close();
             link.poll(nowMs());
             const Stats& s = link.stats();
-            std::fprintf(stderr, "peer: exiting, tx_frames=%u rx_frames=%u rx_errors=%u retransmits=%u\n",
-                         s.txFrames, s.rxFrames, s.rxErrors, s.retransmits);
+            std::fprintf(stderr, "peer: exiting, tx_frames=%u rx_frames=%u rx_errors=%u retransmits=%u"
+                         " baud_switches=%u baud_failures=%u baud_fallbacks=%u\n",
+                         s.txFrames, s.rxFrames, s.rxErrors, s.retransmits,
+                         s.baudSwitches, s.baudFailures, s.baudFallbacks);
             return 0;
         }
         link.onRx(buf, size_t(n), nowMs());

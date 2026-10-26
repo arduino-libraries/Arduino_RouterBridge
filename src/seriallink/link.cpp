@@ -27,6 +27,19 @@ static inline bool due(uint32_t now, uint32_t deadline) {
 Link::Link(OutputFn output, void* ctx, const Timing& timing)
     : output(output), outputCtx(ctx), timing(timing) {}
 
+void Link::setBaudRates(SetBaudRateFn fn, uint32_t base, uint16_t rates) {
+    setBaudFn = fn;
+    if (baseBaud == 0) curBaud = base; // first call: the port is at the base rate
+    baseBaud = base;
+    localRates = rates & baudRateMask(base, 0xFFFFFFFF);
+}
+
+void Link::setBaud(uint32_t rate) {
+    if (setBaudFn == nullptr || rate == curBaud) return;
+    setBaudFn(outputCtx, rate);
+    curBaud = rate;
+}
+
 void Link::begin(uint32_t sessionNonce, uint32_t now) {
     // A pending RST (from a previous close or failure) is kept: it targets the
     // previous session and it is harmless for the new one.
@@ -61,6 +74,13 @@ void Link::begin(uint32_t sessionNonce, uint32_t now) {
     lastRx = now;
     accLen = 0;
     discarding = false;
+    // Every session starts at the base rate
+    setBaud(baseBaud);
+    baudTarget = 0;
+    baudPhase = BaudPhase::Base;
+    baudSwitchPending = false;
+    baudProven = false;
+    baudFailures = 0;
 }
 
 void Link::close() {
@@ -77,6 +97,7 @@ void Link::terminate(Error e, bool sendRst) {
     synAckPending = false;
     nakPending = false;
     ackNeeded = false;
+    baudSwitchPending = false;
     if (sendRst) rstPending = true;
 }
 
@@ -85,6 +106,7 @@ SynParams Link::localParams() const {
     p.maxPayload = SERIALLINK_MAX_PAYLOAD;
     p.window = SERIALLINK_WINDOW;
     p.nonce = nonce;
+    p.baudRates = setBaudFn != nullptr ? localRates : 0;
     return p;
 }
 
@@ -163,6 +185,7 @@ void Link::receive(uint32_t now) {
     }
     stat.rxFrames++;
     handleFrame(f, now);
+    if (st == State::Established) onValidFrameBaud(now);
 }
 
 void Link::handleFrame(const Frame& f, uint32_t now) {
@@ -233,6 +256,56 @@ void Link::establish(uint32_t now) {
     negWindow = minOf<uint8_t>(SERIALLINK_WINDOW, peer.window);
     peerWnd = peer.window;
     lastRx = now;
+    baudTarget = setBaudFn != nullptr ? highestBaudRate(localRates & peer.baudRates) : 0;
+}
+
+// Baud rate negotiation, see the "Baud rate" section of the specification.
+void Link::onValidFrameBaud(uint32_t now) {
+    if (baudPhase == BaudPhase::Base) {
+        // The peer is at the base rate too: answer it (from flush), then switch
+        if (baudTarget != 0) {
+            baudPhase = BaudPhase::Fast;
+            baudProven = false;
+            baudSwitchPending = true;
+        }
+    } else if (!baudSwitchPending && !baudProven && now - baudSwitchedAt >= timing.retransmitTimeoutMs) {
+        // The frames received earlier may have been sent by the peer at the
+        // base rate, and read late from the port buffers
+        baudProven = true;
+        baudFailures = 0;
+        stat.baudSwitches++;
+    }
+}
+
+// When a side at the negotiated rate that has not received any valid frame
+// falls back to the base rate.
+uint32_t Link::baudSilenceDeadline() const {
+    const uint32_t from = int32_t(lastRx - baudSwitchedAt) > 0 ? lastRx : baudSwitchedAt;
+    return from + 2 * timing.keepAliveMs;
+}
+
+// Goes back to the base rate after a silence at the negotiated rate: the
+// switch failed (if not proven yet), or the peer restarted at the base rate,
+// or the line is down.
+void Link::baudFallback(uint32_t now) {
+    baudPhase = BaudPhase::Base;
+    setBaud(baseBaud);
+    if (!baudProven) {
+        stat.baudFailures++;
+        if (++baudFailures >= MAX_BAUD_FAILURES) {
+            // The rate does not work: reset the session (the RST is sent at
+            // the base rate). The rate is not lowered automatically.
+            terminate(Error::BaudRate, true);
+            return;
+        }
+    } else {
+        stat.baudFallbacks++;
+    }
+    ackNeeded = true; // if the peer is at the base rate too, this triggers a new switch
+    // Send again what was lost at the negotiated rate
+    retries = 0;
+    rtoStart = now;
+    retransmit();
 }
 
 void Link::handleEstablished(const Frame& f, uint32_t now) {
@@ -296,8 +369,14 @@ uint32_t Link::poll(uint32_t now) {
     } else if (st == State::Established) {
         if (now - lastRx >= timing.linkTimeoutMs) {
             terminate(Error::LinkTimeout, true);
-        } else if (txCount > 0 && txSent == txCount && due(now, rtoStart + timing.retransmitTimeoutMs)) {
-            if (++retries > timing.maxRetries) {
+        } else if (baudPhase == BaudPhase::Fast && !baudSwitchPending && due(now, baudSilenceDeadline())) {
+            baudFallback(now);
+        }
+        if (st == State::Established &&
+            txCount > 0 && txSent == txCount && due(now, rtoStart + timing.retransmitTimeoutMs)) {
+            // While switching, the silence fallback bounds the retries
+            const bool counted = baudPhase == BaudPhase::Base || baudProven;
+            if (counted && ++retries > timing.maxRetries) {
                 terminate(Error::LinkTimeout, true);
             } else {
                 retransmit();
@@ -326,12 +405,14 @@ uint32_t Link::poll(uint32_t now) {
         consider(lastTx + timing.keepAliveMs);
         if (txCount > 0) consider(rtoStart + timing.retransmitTimeoutMs);
         if (ackPending > 0) consider(ackDue);
+        if (baudPhase == BaudPhase::Fast && !baudSwitchPending) consider(baudSilenceDeadline());
     }
     return next;
 }
 
 void Link::flush(uint32_t now) {
-    uint8_t p[SYN_ACK_SIZE];
+    uint8_t p[CONTROL_PAYLOAD_LIMIT];
+    bool synAckSent = false;
     if (rstPending) {
         rstPending = false;
         putUint32(p, nonce);
@@ -349,9 +430,28 @@ void Link::flush(uint32_t now) {
             SynParams lp = localParams();
             lp.echo = peer.nonce;
             emit(FrameType::SynAck, 0, p, marshalSyn(lp, true, p), now);
+            synAckSent = true;
         }
     }
     if (st != State::Established) return;
+
+    if (baudSwitchPending) {
+        // Answer the peer twice at the base rate (if the answer is lost, the
+        // peer does not switch), then switch
+        baudSwitchPending = false;
+        for (int i = synAckSent ? 1 : 0; i < 2; i++) {
+            if (peerActive) {
+                emit(FrameType::Ack, 0, nullptr, 0, now);
+            } else {
+                // The peer may not be established yet
+                SynParams lp = localParams();
+                lp.echo = peer.nonce;
+                emit(FrameType::SynAck, 0, p, marshalSyn(lp, true, p), now);
+            }
+        }
+        setBaud(baudTarget);
+        baudSwitchedAt = now;
+    }
 
     // Every DATA/ACK/NAK frame carries an up-to-date acknowledgement
     bool acked = false;
@@ -382,7 +482,17 @@ void Link::emit(FrameType type, uint8_t seq, const uint8_t* payload, size_t len,
         lastAdvWnd = f.wnd;
         ackPending = 0;
     }
-    const size_t n = encodeFrame(f, txRaw, txEnc);
+    // The peer may have received garbage while the rates did not match: a
+    // delimiter in front ends it, so this frame is not lost (the receiver
+    // ignores empty frames). It is needed until both sides are surely at the
+    // same rate, that is until the switch is proven and the peer, that may
+    // have been proven earlier, had the time to fall back if it was not.
+    size_t n = 0;
+    if (baudTarget != 0 && (baudPhase == BaudPhase::Base || !baudProven ||
+                            now - baudSwitchedAt < 2 * timing.keepAliveMs)) {
+        txEnc[n++] = 0;
+    }
+    n += encodeFrame(f, txRaw, txEnc + n);
     lastTx = now;
     stat.txFrames++;
     output(outputCtx, txEnc, n);

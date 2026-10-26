@@ -24,9 +24,25 @@ constexpr size_t HEADER_SIZE = 4;
 constexpr size_t CRC_SIZE = 4;
 constexpr size_t MAX_PAYLOAD_LIMIT = 4096;
 constexpr size_t MAX_WINDOW_LIMIT = 127;
-constexpr size_t SYN_SIZE = 7;
-constexpr size_t SYN_ACK_SIZE = 11;
+constexpr size_t SYN_SIZE = 7;       // without the optional fields
+constexpr size_t SYN_ACK_SIZE = 11;  // without the optional fields
+constexpr size_t BAUD_RATES_SIZE = 2;
 constexpr size_t RST_SIZE = 4;
+// Every receiver must accept control frames (SYN, SYN_ACK, RST) with a payload
+// of up to this size, whatever its max payload.
+constexpr size_t CONTROL_PAYLOAD_LIMIT = 32;
+
+// Baud rates that can be negotiated: bit i of a baud rate mask stands for
+// BAUD_RATES[i]. Bits 14 and 15 are reserved.
+constexpr size_t BAUD_RATES_COUNT = 14;
+extern const uint32_t BAUD_RATES[BAUD_RATES_COUNT];
+constexpr uint16_t BAUD_RATES_VALID = 0x3FFF;
+
+// Returns the mask of the rates r with base < r <= maxRate.
+uint16_t baudRateMask(uint32_t base, uint32_t maxRate);
+
+// Returns the highest rate in mask, 0 if mask is empty.
+uint32_t highestBaudRate(uint16_t mask);
 
 // Size of a decoded frame (header, payload and CRC).
 constexpr size_t rawFrameSize(size_t payloadLen) {
@@ -71,13 +87,16 @@ struct SynParams {
     uint16_t maxPayload;
     uint8_t window;
     uint32_t nonce;
-    uint32_t echo; // only in SYN_ACK
+    uint32_t echo;      // only in SYN_ACK
+    uint16_t baudRates; // optional, omitted if 0
 };
 
-// Writes the SYN (SYN_SIZE bytes) or SYN_ACK (SYN_ACK_SIZE bytes) payload.
+// Writes the SYN or SYN_ACK payload (at most CONTROL_PAYLOAD_LIMIT bytes),
+// returns its length.
 size_t marshalSyn(const SynParams& p, bool withEcho, uint8_t* out);
 
-// Parses and validates a SYN or SYN_ACK payload.
+// Parses and validates a SYN or SYN_ACK payload. Optional fields may be
+// missing, and unknown trailing bytes are ignored (future extensions).
 bool parseSyn(const uint8_t* b, size_t len, bool withEcho, SynParams& p);
 
 void putUint32(uint8_t* b, uint32_t v);

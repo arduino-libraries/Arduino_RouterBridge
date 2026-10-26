@@ -46,6 +46,11 @@ static_assert(SERIALLINK_WINDOW >= 1 && SERIALLINK_WINDOW <= seriallink::MAX_WIN
 //  - provide a monotonic time in milliseconds to every call (it may wrap)
 // Frames are sent synchronously, from poll(), through the output function.
 //
+// Baud rate: if enabled with setBaudRates(), the link negotiates a faster
+// rate with the peer once the session is established, and changes it
+// synchronously from poll() and begin() through the baud rate function.
+// Every session starts at the base rate.
+//
 // The Link is not thread-safe: if it is used by several threads, the caller
 // must serialize the calls (for example with a mutex).
 namespace seriallink {
@@ -62,6 +67,7 @@ enum class Error : uint8_t {
     Closed,       // close() has been called
     SessionReset, // the peer restarted or aborted the session
     LinkTimeout,  // the peer stopped responding
+    BaudRate,     // the negotiated baud rate does not work
 };
 
 struct Timing {
@@ -84,14 +90,27 @@ struct Stats {
     uint32_t rxFrames = 0;    // valid frames received
     uint32_t rxErrors = 0;    // frames dropped because corrupted
     uint32_t retransmits = 0; // DATA frames sent again
+    uint32_t baudSwitches = 0;  // successful switches to the negotiated baud rate
+    uint32_t baudFailures = 0;  // failed attempts to switch to the negotiated baud rate
+    uint32_t baudFallbacks = 0; // fallbacks to the base rate after a silence at the negotiated rate
 };
 
 class Link {
 public:
     // Output function: must write the encoded frame to the serial port.
     typedef void (*OutputFn)(void* ctx, const uint8_t* data, size_t len);
+    // Baud rate function: must wait until all the data written so far has
+    // been transmitted, then change the serial port baud rate.
+    typedef void (*SetBaudRateFn)(void* ctx, uint32_t rate);
 
     Link(OutputFn output, void* ctx, const Timing& timing = Timing());
+
+    // Enables the baud rate negotiation. base is the rate of the serial port
+    // at the beginning of every session, rates is the mask of the faster
+    // rates that the serial port supports (see baudRateMask()). It must be
+    // called before begin(), and the serial port must be at the base rate
+    // the first time it is called. Changes take effect at the next begin().
+    void setBaudRates(SetBaudRateFn fn, uint32_t base, uint16_t rates);
 
     Link(const Link&) = delete;
     Link& operator=(const Link&) = delete;
@@ -133,9 +152,22 @@ public:
     uint16_t maxPayload() const { return negMaxPayload; }
     uint8_t sendWindow() const { return negWindow; }
 
+    // Current baud rate of the serial port.
+    uint32_t baudRate() const { return curBaud; }
+
 private:
     static constexpr size_t RX_CAP = SERIALLINK_WINDOW * SERIALLINK_MAX_PAYLOAD;
-    static constexpr size_t MAX_ENCODED = cobs::maxEncodedLen(rawFrameSize(SERIALLINK_MAX_PAYLOAD));
+    // Largest payload received or sent: control frames may be larger than
+    // the max payload.
+    static constexpr size_t FRAME_PAYLOAD_CAP =
+        SERIALLINK_MAX_PAYLOAD > CONTROL_PAYLOAD_LIMIT ? SERIALLINK_MAX_PAYLOAD : CONTROL_PAYLOAD_LIMIT;
+    static constexpr size_t MAX_ENCODED = cobs::maxEncodedLen(rawFrameSize(FRAME_PAYLOAD_CAP));
+    static constexpr uint8_t MAX_BAUD_FAILURES = 5;
+
+    enum class BaudPhase : uint8_t {
+        Base, // at the base rate
+        Fast, // at the negotiated rate (or switching to it)
+    };
 
     struct Slot {
         uint16_t len;
@@ -151,6 +183,10 @@ private:
     void flush(uint32_t now);
     void emit(FrameType type, uint8_t seq, const uint8_t* payload, size_t len, uint32_t now);
     SynParams localParams() const;
+    void setBaud(uint32_t rate);
+    void onValidFrameBaud(uint32_t now);
+    void baudFallback(uint32_t now);
+    uint32_t baudSilenceDeadline() const;
     uint8_t recvCredit() const;
     uint8_t sendLimit() const;
 
@@ -190,6 +226,18 @@ private:
     uint32_t lastRst = 0;
     bool rstSent = false;
 
+    // baud rate negotiation
+    SetBaudRateFn setBaudFn = nullptr;
+    uint32_t baseBaud = 0;
+    uint16_t localRates = 0;
+    uint32_t curBaud = 0;
+    uint32_t baudTarget = 0; // negotiated rate, 0 if none
+    BaudPhase baudPhase = BaudPhase::Base;
+    bool baudSwitchPending = false; // send the answer and switch, from flush()
+    bool baudProven = false;        // Fast: the peer has been heard at the negotiated rate
+    uint32_t baudSwitchedAt = 0;    // Fast: when the port switched to the negotiated rate
+    uint8_t baudFailures = 0;       // consecutive failed switches
+
     // receiver
     uint8_t rxBuf[RX_CAP];
     size_t rxHead = 0;
@@ -205,9 +253,9 @@ private:
     uint8_t acc[MAX_ENCODED];
     size_t accLen = 0;
     bool discarding = false;
-    uint8_t rxRaw[rawFrameSize(SERIALLINK_MAX_PAYLOAD)];
-    uint8_t txRaw[rawFrameSize(SERIALLINK_MAX_PAYLOAD)];
-    uint8_t txEnc[maxEncodedFrameSize(SERIALLINK_MAX_PAYLOAD)];
+    uint8_t rxRaw[rawFrameSize(FRAME_PAYLOAD_CAP)];
+    uint8_t txRaw[rawFrameSize(FRAME_PAYLOAD_CAP)];
+    uint8_t txEnc[1 + maxEncodedFrameSize(FRAME_PAYLOAD_CAP)]; // with room for a leading delimiter
 };
 
 } // namespace seriallink
