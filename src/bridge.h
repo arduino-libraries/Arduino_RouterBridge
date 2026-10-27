@@ -28,6 +28,12 @@
 #define UPDATE_THREAD_PRIORITY      5
 
 #define DEFAULT_SERIAL_BAUD         115200
+// With BridgeProtocol::Reliable, the default maximum rate negotiated with the
+// router. 1000000 is generated exactly by the UNO Q UART, and it is the
+// fastest rate tested to be reliable on that board.
+#ifndef BRIDGE_DEFAULT_MAX_BAUD
+#define BRIDGE_DEFAULT_MAX_BAUD     1000000
+#endif
 // With BridgeProtocol::Reliable every session starts at this rate.
 #ifndef BRIDGE_BASE_BAUD
 #define BRIDGE_BASE_BAUD            115200
@@ -227,10 +233,11 @@ public:
     }
 
     // Initialize the bridge. With BridgeProtocol::Raw, baud is the rate of the
-    // serial port. With BridgeProtocol::Reliable, it is the maximum rate that
-    // can be negotiated with the router (every session starts at
+    // serial port (DEFAULT_SERIAL_BAUD if 0). With BridgeProtocol::Reliable,
+    // it is the maximum rate that can be negotiated with the router
+    // (BRIDGE_DEFAULT_MAX_BAUD if 0, every session starts at
     // BRIDGE_BASE_BAUD).
-    bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD, BridgeProtocol protocol=BRIDGE_DEFAULT_PROTOCOL) {
+    bool begin(unsigned long baud=0, BridgeProtocol protocol=BRIDGE_DEFAULT_PROTOCOL) {
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
         k_mutex_init(&bridge_mutex);
@@ -239,6 +246,9 @@ public:
 
         k_mutex_lock(&bridge_mutex, K_FOREVER);
 
+        if (baud == 0) {
+            baud = protocol == BridgeProtocol::Reliable ? BRIDGE_DEFAULT_MAX_BAUD : DEFAULT_SERIAL_BAUD;
+        }
         serial_ptr->begin(protocol == BridgeProtocol::Reliable ? BRIDGE_BASE_BAUD : baud);
         while (!*serial_ptr){
             k_yield();
