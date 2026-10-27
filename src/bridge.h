@@ -16,6 +16,7 @@
 
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
+#define UNBIND_METHOD "$/unregister"
 #define GET_VERSION_METHOD "$/version"
 #define SET_BUF_METHOD "$/setMaxMsgSize"
 
@@ -157,6 +158,11 @@ class BridgeClass {
     struct k_mutex read_mutex{};
     struct k_mutex write_mutex{};
     struct k_mutex bridge_mutex{};
+    struct k_mutex dispatch_mutex{};
+
+    // Method being executed by dispatch(), used to defer its own unprovide
+    const MsgPack::str_t* dispatching = nullptr;
+    bool unbind_pending = false;
 
     k_tid_t upd_tid{};
     k_thread_stack_t *upd_stack_area{};
@@ -186,6 +192,7 @@ public:
         k_mutex_init(&read_mutex);
         k_mutex_init(&write_mutex);
         k_mutex_init(&bridge_mutex);
+        k_mutex_init(&dispatch_mutex);
 
         if (is_started()) return true;
 
@@ -223,21 +230,59 @@ public:
         return call(GET_VERSION_METHOD).result(version);
     }
 
+    // Lock order: dispatch_mutex -> bridge_mutex -> read_mutex
+
     template<typename F>
     bool provide(const MsgPack::str_t& name, F&& func) {
+        k_mutex_lock(&dispatch_mutex, K_FOREVER);
         k_mutex_lock(&bridge_mutex, K_FOREVER);
         bool res;
-        bool out = call(BIND_METHOD, name).result(res) && res && server->bind(name, func);
+        bool out = call(BIND_METHOD, name).result(res) && res;
+        if (out) {
+            k_mutex_lock(&read_mutex, K_FOREVER);
+            out = server->bind(name, func);
+            k_mutex_unlock(&read_mutex);
+        }
         k_mutex_unlock(&bridge_mutex);
+        k_mutex_unlock(&dispatch_mutex);
         return out;
     }
 
     template<typename F>
     bool provide_safe(const MsgPack::str_t& name, F&& func) {
+        k_mutex_lock(&dispatch_mutex, K_FOREVER);
         k_mutex_lock(&bridge_mutex, K_FOREVER);
         bool res;
-        bool out = call(BIND_METHOD, name).result(res) && res && server->bind(name, func, "__safe__");
+        bool out = call(BIND_METHOD, name).result(res) && res;
+        if (out) {
+            k_mutex_lock(&read_mutex, K_FOREVER);
+            out = server->bind(name, func, "__safe__");
+            k_mutex_unlock(&read_mutex);
+        }
         k_mutex_unlock(&bridge_mutex);
+        k_mutex_unlock(&dispatch_mutex);
+        return out;
+    }
+
+    // Fails without touching the local callback if the Router does not support $/unregister
+    bool unprovide(const MsgPack::str_t& name) {
+        k_mutex_lock(&dispatch_mutex, K_FOREVER);
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+        bool res;
+        bool out = call(UNBIND_METHOD, name).result(res) && res;
+        if (out) {
+            // dispatch_mutex is recursive: dispatching is set only if we are inside a callback
+            if (dispatching != nullptr && *dispatching == name) {
+                // The callback is unproviding itself: unbind it after it returns
+                unbind_pending = true;
+            } else {
+                k_mutex_lock(&read_mutex, K_FOREVER);
+                out = server->unbind(name);
+                k_mutex_unlock(&read_mutex);
+            }
+        }
+        k_mutex_unlock(&bridge_mutex);
+        k_mutex_unlock(&dispatch_mutex);
         return out;
     }
 
@@ -255,7 +300,7 @@ public:
 
         k_mutex_unlock(&read_mutex);
 
-        server->process_request(req);
+        dispatch(req);
 
         // Lock write mutex
         while (true) {
@@ -291,6 +336,21 @@ public:
 
 private:
 
+    // Runs the callback while holding dispatch_mutex, so it can't be unbound while executing
+    void dispatch(RPCRequest<BRIDGE_RPC_BUFFER_SIZE>& req) {
+        k_mutex_lock(&dispatch_mutex, K_FOREVER);
+        dispatching = &req.method;
+        server->process_request(req);
+        if (unbind_pending) {
+            k_mutex_lock(&read_mutex, K_FOREVER);
+            server->unbind(req.method);
+            k_mutex_unlock(&read_mutex);
+            unbind_pending = false;
+        }
+        dispatching = nullptr;
+        k_mutex_unlock(&dispatch_mutex);
+    }
+
     void update_safe() {
 
         // Lock read mutex
@@ -305,7 +365,7 @@ private:
 
         k_mutex_unlock(&read_mutex);
 
-        server->process_request(req);
+        dispatch(req);
 
         // Lock write mutex
         while (true) {

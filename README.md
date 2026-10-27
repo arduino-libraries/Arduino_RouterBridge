@@ -12,6 +12,7 @@ client/server to execute and serve RPCs to/from a CPU Host running an [rpclib](h
 - The `Bridge` can provide callbacks to incoming RPC requests both in a thread-unsafe and thread-safe fashion (by means of `BridgeClass::provide` and `BridgeClass::provide_safe`)
 - Thread-safe methods execution is granted in the main loop thread where `update_safe` is called. By design, users cannot access `.update_safe()` freely
 - Thread-unsafe methods are served in an update callback, whose execution is granted in a separate thread. Nonetheless, users can access `.update()` freely with caution
+- A provided callback can be removed with `BridgeClass::unprovide`. It requires a Router exposing `$/unregister`; otherwise it returns false and the callback stays bound. A callback can unprovide itself: it is removed after it returns
 
 
 ```cpp
