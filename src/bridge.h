@@ -16,6 +16,7 @@
 
 #define RESET_METHOD "$/reset"
 #define BIND_METHOD "$/register"
+#define UNBIND_METHOD "$/unregister"
 #define GET_VERSION_METHOD "$/version"
 #define SET_BUF_METHOD "$/setMaxMsgSize"
 
@@ -225,18 +226,43 @@ public:
 
     template<typename F>
     bool provide(const MsgPack::str_t& name, F&& func) {
-        k_mutex_lock(&bridge_mutex, K_FOREVER);
         bool res;
-        bool out = call(BIND_METHOD, name).result(res) && res && server->bind(name, func);
+        bool out = call(BIND_METHOD, name).result(res) && res;
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+        if (out) {out = server->bind(name, func);}
         k_mutex_unlock(&bridge_mutex);
         return out;
     }
 
     template<typename F>
     bool provide_safe(const MsgPack::str_t& name, F&& func) {
-        k_mutex_lock(&bridge_mutex, K_FOREVER);
         bool res;
-        bool out = call(BIND_METHOD, name).result(res) && res && server->bind(name, func, "__safe__");
+        bool out = call(BIND_METHOD, name).result(res) && res;
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+        if (out) {out = server->bind(name, func, "__safe__");}
+        k_mutex_unlock(&bridge_mutex);
+        return out;
+    }
+
+    bool unprovide(const MsgPack::str_t& name) {
+        notify(UNBIND_METHOD, name);
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+        if (!server->isBound(name))
+        {
+            k_mutex_unlock(&bridge_mutex);
+            return true;
+        }
+        bool out = server->unbind(name);
+        k_mutex_unlock(&bridge_mutex);
+        return out;
+    }
+
+    bool restore(const MsgPack::str_t& name)
+    {
+        bool res;
+        bool out = call(BIND_METHOD, name).result(res) && res;
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+        if (out) {server->rebind(name);}
         k_mutex_unlock(&bridge_mutex);
         return out;
     }
@@ -247,7 +273,7 @@ public:
         if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
 
         RPCRequest<BRIDGE_RPC_BUFFER_SIZE> req;
-        if (!server->get_rpc(req)) {
+        if (!get_rpc(req)) {
             k_mutex_unlock(&read_mutex);
             k_msleep(1);
             return;
@@ -255,7 +281,7 @@ public:
 
         k_mutex_unlock(&read_mutex);
 
-        server->process_request(req);
+        dispatch(req);
 
         // Lock write mutex
         while (true) {
@@ -291,13 +317,27 @@ public:
 
 private:
 
+    // Runs the callback while holding dispatch_mutex, so it can't be unbound while executing
+    void dispatch(RPCRequest<BRIDGE_RPC_BUFFER_SIZE>& req) {
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+        server->process_request(req);
+        k_mutex_unlock(&bridge_mutex);
+    }
+
+    bool get_rpc(RPCRequest<BRIDGE_RPC_BUFFER_SIZE>& req, MsgPack::str_t tag="") {
+        k_mutex_lock(&bridge_mutex, K_FOREVER);
+        bool out = server->get_rpc(req, tag);
+        k_mutex_unlock(&bridge_mutex);
+        return out;
+    }
+
     void update_safe() {
 
         // Lock read mutex
         if (k_mutex_lock(&read_mutex, K_MSEC(10)) != 0 ) return;
 
         RPCRequest<BRIDGE_RPC_BUFFER_SIZE> req;
-        if (!server->get_rpc(req, "__safe__")) {
+        if (!get_rpc(req, "__safe__")) {
             k_mutex_unlock(&read_mutex);
             k_msleep(1);
             return;
@@ -305,7 +345,7 @@ private:
 
         k_mutex_unlock(&read_mutex);
 
-        server->process_request(req);
+        dispatch(req);
 
         // Lock write mutex
         while (true) {
