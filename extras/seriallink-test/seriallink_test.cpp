@@ -587,7 +587,7 @@ static void testBaudRateSilenceFallback() {
     sim.ab.blackhole = sim.ba.blackhole = true;
     CHECK(sim.runUntil([&] { return sim.rateA == 115200 && sim.rateB == 115200; }, 3 * testTiming().keepAliveMs));
     sim.ab.blackhole = sim.ba.blackhole = false;
-    CHECK(sim.runUntil([&] { return sim.a.stats().baudSwitches == 2 && sim.b.stats().baudSwitches == 2; }, 3000));
+    CHECK(sim.runUntil([&] { return sim.a.stats().baudSwitches == 2 && sim.b.stats().baudSwitches == 2; }, 6000));
     CHECK(exchange(sim, 16 * 1024, 30000));
     CHECK(sim.a.stats().baudFallbacks == 1 && sim.b.stats().baudFallbacks == 1);
     CHECK(sim.a.state() == State::Established && sim.b.state() == State::Established);
@@ -639,19 +639,18 @@ static void testBaudRateBroken() {
 }
 
 static void testBaudRateBrokenOneWay() {
-    // At the negotiated rate only B->A works: A confirms the switch, B does
-    // not. The session must fail anyway.
+    // At the negotiated rate only B->A works: A hears B, but the switch must
+    // not be proven on either side, and the session must fail.
     Sim sim;
     sim.ab.deadAboveBase = true;
     enableBaud(sim, 921600, 921600);
     CHECK(sim.established());
-    // Every attempt takes about 2.5s: A falls back only after two keep-alive
-    // intervals of silence
     const uint32_t start = sim.now;
     CHECK(sim.runUntil([&] { return sim.b.state() == State::Closed; }, 30000));
     std::printf("  failed after %u ms\n", sim.now - start);
     CHECK(sim.b.error() == Error::BaudRate);
-    CHECK(sim.a.stats().baudSwitches > 0);
+    CHECK(sim.a.stats().baudSwitches == 0);
+    CHECK(sim.b.stats().baudSwitches == 0);
 }
 
 int main() {

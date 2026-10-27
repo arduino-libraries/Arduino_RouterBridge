@@ -268,9 +268,14 @@ void Link::onValidFrameBaud(uint32_t now) {
             baudProven = false;
             baudSwitchPending = true;
         }
-    } else if (!baudSwitchPending && !baudProven && now - baudSwitchedAt >= timing.retransmitTimeoutMs) {
-        // The frames received earlier may have been sent by the peer at the
-        // base rate, and read late from the port buffers
+    } else if (!baudSwitchPending && !baudProven && now - baudSwitchedAt >= 3 * timing.retransmitTimeoutMs) {
+        // A peer that does not receive our frames falls back to the base
+        // rate after two retransmission timeouts (plus a margin, because it
+        // may have switched a bit later), while a peer still at the
+        // negotiated rate after that time hears us. The frames received
+        // earlier only prove that we hear the peer, or may even have been
+        // sent by the peer at the base rate, and read late from the port
+        // buffers.
         baudProven = true;
         baudFailures = 0;
         stat.baudSwitches++;
@@ -278,10 +283,24 @@ void Link::onValidFrameBaud(uint32_t now) {
 }
 
 // When a side at the negotiated rate that has not received any valid frame
-// falls back to the base rate.
+// falls back to the base rate: until the switch is proven the keep-alive
+// frames are sent every half retransmission timeout, so a failed switch is
+// detected quickly, then a lost keep-alive frame must be tolerated.
 uint32_t Link::baudSilenceDeadline() const {
     const uint32_t from = int32_t(lastRx - baudSwitchedAt) > 0 ? lastRx : baudSwitchedAt;
-    return from + 2 * timing.keepAliveMs;
+    if (!baudProven) return from + 2 * timing.retransmitTimeoutMs;
+    return from + 2 * timing.keepAliveMs + timing.retransmitTimeoutMs;
+}
+
+// Shortly after a switch, the keep-alive frames are sent every half
+// retransmission timeout: until the switch is proven on both sides (the peer
+// may be proven later), and while a peer that did not switch may fall back.
+uint32_t Link::keepAliveInterval(uint32_t now) const {
+    if (baudPhase == BaudPhase::Fast &&
+        (!baudProven || now - baudSwitchedAt < 5 * timing.retransmitTimeoutMs)) {
+        return timing.retransmitTimeoutMs >= 2 ? timing.retransmitTimeoutMs / 2 : 1;
+    }
+    return timing.keepAliveMs;
 }
 
 // Goes back to the base rate after a silence at the negotiated rate: the
@@ -385,7 +404,7 @@ uint32_t Link::poll(uint32_t now) {
         }
         if (st == State::Established) {
             if (ackPending > 0 && due(now, ackDue)) ackNeeded = true;
-            if (due(now, lastTx + timing.keepAliveMs)) ackNeeded = true;
+            if (due(now, lastTx + keepAliveInterval(now))) ackNeeded = true;
         }
     }
 
@@ -402,7 +421,7 @@ uint32_t Link::poll(uint32_t now) {
         consider(synDeadline);
     } else if (st == State::Established) {
         consider(lastRx + timing.linkTimeoutMs);
-        consider(lastTx + timing.keepAliveMs);
+        consider(lastTx + keepAliveInterval(now));
         if (txCount > 0) consider(rtoStart + timing.retransmitTimeoutMs);
         if (ackPending > 0) consider(ackDue);
         if (baudPhase == BaudPhase::Fast && !baudSwitchPending) consider(baudSilenceDeadline());
@@ -482,16 +501,11 @@ void Link::emit(FrameType type, uint8_t seq, const uint8_t* payload, size_t len,
         lastAdvWnd = f.wnd;
         ackPending = 0;
     }
-    // The peer may have received garbage while the rates did not match: a
-    // delimiter in front ends it, so this frame is not lost (the receiver
-    // ignores empty frames). It is needed until both sides are surely at the
-    // same rate, that is until the switch is proven and the peer, that may
-    // have been proven earlier, had the time to fall back if it was not.
+    // The peer may have received garbage while the rates did not match:
+    // until the switch is proven, a delimiter in front ends it, so this frame
+    // is not lost (the receiver ignores empty frames)
     size_t n = 0;
-    if (baudTarget != 0 && (baudPhase == BaudPhase::Base || !baudProven ||
-                            now - baudSwitchedAt < 2 * timing.keepAliveMs)) {
-        txEnc[n++] = 0;
-    }
+    if (baudTarget != 0 && (baudPhase == BaudPhase::Base || !baudProven)) txEnc[n++] = 0;
     n += encodeFrame(f, txRaw, txEnc + n);
     lastTx = now;
     stat.txFrames++;

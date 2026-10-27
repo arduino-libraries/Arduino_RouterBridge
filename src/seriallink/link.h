@@ -187,6 +187,7 @@ private:
     void onValidFrameBaud(uint32_t now);
     void baudFallback(uint32_t now);
     uint32_t baudSilenceDeadline() const;
+    uint32_t keepAliveInterval(uint32_t now) const;
     uint8_t recvCredit() const;
     uint8_t sendLimit() const;
 
