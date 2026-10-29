@@ -179,8 +179,11 @@ void Link::onRx(const uint8_t* data, size_t len, uint32_t now) {
 
 void Link::receive(uint32_t now) {
     Frame f;
-    if (discarding || !decodeFrame(acc, accLen, rxRaw, sizeof(rxRaw), f)) {
+    const DecodeResult res = discarding ? DecodeResult::Corrupted : decodeFrame(acc, accLen, rxRaw, sizeof(rxRaw), f);
+    if (res != DecodeResult::Ok) {
         stat.rxErrors++;
+        // A corrupted frame may have been a DATA frame: ask to go back
+        if (res == DecodeResult::Corrupted && st == State::Established) sendNak(now);
         return;
     }
     stat.rxFrames++;
@@ -366,11 +369,20 @@ void Link::handleEstablished(const Frame& f, uint32_t now) {
         if (ackPending >= maxOf(1, negWindow / 2) || recvCredit() == 0) ackNeeded = true;
     } else if (d >= 128) {
         ackNeeded = true; // duplicate: our ack has probably been lost
-    } else if (!nakSent) {
-        // A frame has been lost: ask to go back (only once)
-        nakSent = true;
-        nakPending = true;
+    } else {
+        sendNak(now); // a frame has been lost: ask to go back
     }
+}
+
+// The NAK is sent once until a DATA frame is accepted (the rest of the window
+// is coming out of order too), or again after a retransmission timeout (the
+// NAK or the retransmission may have been lost, or the corrupted frame was not
+// a DATA frame).
+void Link::sendNak(uint32_t now) {
+    if (nakSent && now - nakAt < timing.retransmitTimeoutMs) return;
+    nakSent = true;
+    nakAt = now;
+    nakPending = true;
 }
 
 void Link::retransmit() {

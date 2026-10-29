@@ -77,10 +77,16 @@ struct Frame {
 // maxEncodedFrameSize(f.len) bytes. Returns the encoded length.
 size_t encodeFrame(const Frame& f, uint8_t* raw, uint8_t* dst);
 
+enum class DecodeResult : uint8_t {
+    Ok,
+    Corrupted,   // bad COBS encoding, bad CRC, too short or too long
+    Unsupported, // valid, but of an unknown protocol version or frame type
+};
+
 // Decodes a COBS-encoded frame (without the delimiter) using raw, of rawCap
 // bytes, as buffer for the decoded frame. On success f.payload points into
-// raw. Returns false if the frame is corrupted or unsupported.
-bool decodeFrame(const uint8_t* encoded, size_t len, uint8_t* raw, size_t rawCap, Frame& f);
+// raw.
+DecodeResult decodeFrame(const uint8_t* encoded, size_t len, uint8_t* raw, size_t rawCap, Frame& f);
 
 // Session parameters exchanged in SYN and SYN_ACK frames.
 struct SynParams {

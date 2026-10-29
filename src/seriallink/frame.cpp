@@ -61,22 +61,22 @@ size_t encodeFrame(const Frame& f, uint8_t* raw, uint8_t* dst) {
     return n + 1;
 }
 
-bool decodeFrame(const uint8_t* encoded, size_t len, uint8_t* raw, size_t rawCap, Frame& f) {
+DecodeResult decodeFrame(const uint8_t* encoded, size_t len, uint8_t* raw, size_t rawCap, Frame& f) {
     size_t rawLen;
-    if (!cobs::decode(raw, rawCap, encoded, len, rawLen)) return false;
-    if (rawLen < HEADER_SIZE + CRC_SIZE) return false;
+    if (!cobs::decode(raw, rawCap, encoded, len, rawLen)) return DecodeResult::Corrupted;
+    if (rawLen < HEADER_SIZE + CRC_SIZE) return DecodeResult::Corrupted;
     const size_t bodyLen = rawLen - CRC_SIZE;
-    if (crc32(raw, bodyLen) != getUint32(raw + bodyLen)) return false;
-    if (raw[0] >> 4 != PROTOCOL_VERSION) return false;
+    if (crc32(raw, bodyLen) != getUint32(raw + bodyLen)) return DecodeResult::Corrupted;
+    if (raw[0] >> 4 != PROTOCOL_VERSION) return DecodeResult::Unsupported;
     const uint8_t type = raw[0] & 0x0F;
-    if (type < uint8_t(FrameType::Data) || type > uint8_t(FrameType::Rst)) return false;
+    if (type < uint8_t(FrameType::Data) || type > uint8_t(FrameType::Rst)) return DecodeResult::Unsupported;
     f.type = FrameType(type);
     f.seq = raw[1];
     f.ack = raw[2];
     f.wnd = raw[3];
     f.payload = raw + HEADER_SIZE;
     f.len = bodyLen - HEADER_SIZE;
-    return true;
+    return DecodeResult::Ok;
 }
 
 size_t marshalSyn(const SynParams& p, bool withEcho, uint8_t* out) {

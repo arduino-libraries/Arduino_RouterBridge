@@ -180,6 +180,7 @@ private:
     void handleFrame(const Frame& f, uint32_t now);
     void handleEstablished(const Frame& f, uint32_t now);
     void retransmit();
+    void sendNak(uint32_t now);
     void flush(uint32_t now);
     void emit(FrameType type, uint8_t seq, const uint8_t* payload, size_t len, uint32_t now);
     SynParams localParams() const;
@@ -246,7 +247,8 @@ private:
     uint8_t expected = 0;
     uint8_t ackPending = 0;
     uint32_t ackDue = 0;
-    bool nakSent = false;
+    bool nakSent = false; // a NAK has been sent and no DATA frame accepted since
+    uint32_t nakAt = 0;   // when the last NAK has been sent
     uint8_t lastAdvWnd = 0;
     uint32_t lastRx = 0;
 

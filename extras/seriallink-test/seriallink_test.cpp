@@ -177,19 +177,19 @@ static void testFrameGolden() {
     // Decoding
     Bytes raw(rawFrameSize(big.size()));
     Frame f;
-    CHECK(decodeFrame(dataEnc.data(), dataEnc.size() - 1, raw.data(), raw.size(), f));
+    CHECK(decodeFrame(dataEnc.data(), dataEnc.size() - 1, raw.data(), raw.size(), f) == DecodeResult::Ok);
     CHECK(f.type == FrameType::Data && f.seq == 7 && f.ack == 200 && f.wnd == 3);
     CHECK(f.len == sizeof(data) && memcmp(f.payload, data, sizeof(data)) == 0);
-    CHECK(decodeFrame(bigEnc.data(), bigEnc.size() - 1, raw.data(), raw.size(), f) && f.len == 300);
+    CHECK(decodeFrame(bigEnc.data(), bigEnc.size() - 1, raw.data(), raw.size(), f) == DecodeResult::Ok && f.len == 300);
 
     // Every single bit flip and every truncation must be detected
     for (size_t i = 0; i < dataEnc.size() - 1; i++) {
         for (int bit = 0; bit < 8; bit++) {
             Bytes bad(dataEnc.begin(), dataEnc.end() - 1);
             bad[i] ^= 1 << bit;
-            CHECK(!decodeFrame(bad.data(), bad.size(), raw.data(), raw.size(), f));
+            CHECK(decodeFrame(bad.data(), bad.size(), raw.data(), raw.size(), f) == DecodeResult::Corrupted);
         }
-        CHECK(!decodeFrame(dataEnc.data(), i, raw.data(), raw.size(), f));
+        CHECK(decodeFrame(dataEnc.data(), i, raw.data(), raw.size(), f) != DecodeResult::Ok);
     }
 }
 
@@ -243,6 +243,7 @@ struct Wire {
     uint32_t* rxRate; // rate of the receiving side
     uint32_t brokenRate = 0; // a rate that the sending side can not generate accurately
     bool deadAboveBase = false; // nothing goes through while the sending side is above 115200
+    size_t corruptLonger = 0; // if not 0, corrupt the next frame longer than this
 
     Wire(uint32_t seed, uint32_t* txRate, uint32_t* rxRate) : rng(seed), txRate(txRate), rxRate(rxRate) {}
 
@@ -254,8 +255,11 @@ struct Wire {
             for (size_t i = 0; i < len; i++) buf.push_back(uint8_t(rng()));
             return;
         }
+        const size_t corruptAt = corruptLonger != 0 && len > corruptLonger ? len / 2 : len;
+        if (corruptAt < len) corruptLonger = 0;
         for (size_t i = 0; i < len; i++) {
             uint8_t b = data[i];
+            if (i == corruptAt) b ^= 0x10;
             if (rand01() < garbage) buf.push_back(uint8_t(rng()));
             if (rand01() < drop) continue;
             if (rand01() < flip) b ^= 1 << (rng() % 8);
@@ -389,6 +393,22 @@ static void testNoisyLine() {
     CHECK(sim.a.stats().retransmits + sim.b.stats().retransmits > 0);
     std::printf("  noisy line: A rx_err=%u retx=%u, B rx_err=%u retx=%u\n",
                 sim.a.stats().rxErrors, sim.a.stats().retransmits, sim.b.stats().rxErrors, sim.b.stats().retransmits);
+}
+
+static void testCorruptedLastFrame() {
+    // The only DATA frame in flight is corrupted: the receiver answers with a
+    // NAK, so it is retransmitted without waiting for the retransmission
+    // timeout
+    Sim sim;
+    CHECK(sim.established());
+    sim.runFor(100);
+    sim.ab.corruptLonger = 32;
+    Transfer t{sim.a, sim.b, randomData(1, 100)};
+    const uint32_t start = sim.now;
+    CHECK(sim.runUntil([&] { t.pump(); return t.done(); }, 1000));
+    CHECK(t.received == t.data);
+    CHECK(sim.now - start < testTiming().retransmitTimeoutMs / 2);
+    CHECK(sim.b.stats().rxErrors == 1 && sim.a.stats().retransmits == 1);
 }
 
 static void testPeerStartsLater() {
@@ -662,6 +682,7 @@ int main() {
         {"BaudRateMask", testBaudRateMask},
         {"CleanLine", testCleanLine},
         {"NoisyLine", testNoisyLine},
+        {"CorruptedLastFrame", testCorruptedLastFrame},
         {"PeerStartsLater", testPeerStartsLater},
         {"FlowControl", testFlowControl},
         {"PeerClose", testPeerClose},
