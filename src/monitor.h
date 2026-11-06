@@ -156,6 +156,16 @@ public:
         return res;
     }
 
+    void end()
+    {
+        // No-op
+    }
+
+    void flush()
+    {
+        // No-op
+    }
+
 private:
     void _read(size_t size) {
 
