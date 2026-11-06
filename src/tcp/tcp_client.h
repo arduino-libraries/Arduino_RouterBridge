@@ -84,13 +84,11 @@ public:
 
     int read() override {
         uint8_t c;
-        if (!temp_buffer.available()) {
-            return -1;
-        }
         return read(&c, 1) == 1 ? c : -1;
     }
 
     int read(uint8_t *buf, size_t size) override {
+        if (!temp_buffer.available()) available();
         k_mutex_lock(&client_mutex, K_FOREVER);
         size_t i = 0;
         while (temp_buffer.available() && i < size) {
