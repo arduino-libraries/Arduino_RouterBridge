@@ -349,14 +349,4 @@ inline void updateEntryPoint(void *, void *, void *){
     }
 }
 
-static void safeUpdate(){
-    BridgeClassUpdater::safeUpdate(&Bridge);
-}
-
-// leave as is
-void __attribute__((weak)) __loopHook(void){
-    k_yield();
-    safeUpdate();
-}
-
 #endif // ROUTER_BRIDGE_H
