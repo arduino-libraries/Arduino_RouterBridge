@@ -22,7 +22,7 @@ void loop() {
 
     Monitor.println("\nStarting connection to server...");
     /* if you get a connection, report back via serial: */
-    if (client.connect("arduino.tips", 80) < 0) {
+    if (client.connect("arduino.tips", 80) <= 0) {
         Monitor.println("unable to connect to server");
         return;
     }

@@ -47,7 +47,7 @@ int BridgeTCPClientBase::connect(const char *host, uint16_t port) {
     _connected = ok;
 
     k_mutex_unlock(&client_mutex);
-    return ok ? 0 : -1;
+    return ok ? 1 : 0;
 }
 
 int BridgeTCPClientBase::connectSSL(const char *host, uint16_t port, const char *ca_cert) {
@@ -60,7 +60,7 @@ int BridgeTCPClientBase::connectSSL(const char *host, uint16_t port, const char 
     _connected = ok;
 
     k_mutex_unlock(&client_mutex);
-    return ok ? 0 : -1;
+    return ok ? 1 : 0;
 }
 
 uint32_t BridgeTCPClientBase::getId() {
