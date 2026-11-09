@@ -379,7 +379,7 @@ private:
     void drop_session_state() {
         const uint32_t session = link_transport->session();
         k_mutex_lock(&read_mutex, K_FOREVER);
-        client->reset();
+        client->get_decoder()->reset();
         k_mutex_unlock(&read_mutex);
         seen_session = session;
         link_transport->ackReset(session);
