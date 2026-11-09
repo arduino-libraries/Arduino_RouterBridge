@@ -88,6 +88,11 @@ public:
         k_thread_name_set(tid, "seriallink");
     }
 
+    void flush() override
+    {
+        serial->flush();
+    }
+
     // Current session (number of session resets so far).
     uint32_t session() const {
         return atomic_get(&resets);
