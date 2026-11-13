@@ -31,6 +31,7 @@ bool BridgeClass::begin(unsigned long baud) {
     transport = new SerialTransport(*serial_ptr);
 
     client = new RPCClient(*transport);
+    client->setTimeout(DEFAULT_BRIDGE_CALL_TIMEOUT);
     server = new RPCServer(*transport);
 
     upd_stack_area = k_thread_stack_alloc(UPDATE_THREAD_STACK_SIZE, 0);
@@ -46,6 +47,13 @@ bool BridgeClass::begin(unsigned long baud) {
     notify(SET_BUF_METHOD, BRIDGE_RPC_BUFFER_SIZE);     // no effect if Router is not exposing SET_BUF_METHOD
     k_mutex_unlock(&bridge_mutex);
     return res;
+}
+
+BridgeClass& BridgeClass::setTimeout(const uint32_t t_ms) {
+    k_mutex_lock(&bridge_mutex, K_FOREVER);
+    client->setTimeout(t_ms);
+    k_mutex_unlock(&bridge_mutex);
+    return *this;
 }
 
 bool BridgeClass::getRouterVersion(MsgPack::str_t& version) {

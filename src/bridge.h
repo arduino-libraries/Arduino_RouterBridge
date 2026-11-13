@@ -30,6 +30,10 @@
 #define DEFAULT_SERIAL_BAUD         115200
 #define BRIDGE_RPC_BUFFER_SIZE      DEFAULT_RPC_BUFFER_SIZE
 
+#ifndef DEFAULT_BRIDGE_CALL_TIMEOUT
+#define DEFAULT_BRIDGE_CALL_TIMEOUT         0
+#endif
+
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
 #include <Arduino_RPClite.h>
@@ -99,6 +103,7 @@ public:
             }
         }
 
+        unsigned long start = millis();
         while(true) {
             if (k_mutex_lock(read_mutex, K_MSEC(10)) == 0 ) {
                 RpcError temp_err;
@@ -110,6 +115,13 @@ public:
                     //     k_mutex_unlock(write_mutex);
                     // }
                     setError(temp_err.code, temp_err.traceback);
+                    break;
+                }
+                if (client->getTimeout()>0 && millis() - start > client->getTimeout())
+                {
+                    client->cancel(msg_id_wait);
+                    setError(TIMEOUT_ERR, "This call timed out");
+                    k_mutex_unlock(read_mutex);
                     break;
                 }
                 k_mutex_unlock(read_mutex);
@@ -183,6 +195,8 @@ public:
 
     // Initialize the bridge
     bool begin(unsigned long baud=DEFAULT_SERIAL_BAUD);
+
+    BridgeClass& setTimeout(uint32_t t_ms);
 
     bool getRouterVersion(MsgPack::str_t& version);
 

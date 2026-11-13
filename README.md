@@ -69,6 +69,14 @@ void loop() {
 }
 ```
 
+### Timeout support ###
+RPC call timeout can be set both via the `DEFAULT_BRIDGE_CALL_TIMEOUT` macro and for each callback
+```cpp
+uint32_t ms = 100;
+Bridge.setTimeout(ms).call(...);
+```
+WARNING: Bridge.setTimeout(t_ms) sets the timeout limit for the next call and every call after that
+
 **⚠️ Warning**
 
 > Calling `Bridge.call` from within an RPC callback may cause an MCU–CPU IPC deadlock.
