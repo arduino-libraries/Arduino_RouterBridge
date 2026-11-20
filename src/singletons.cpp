@@ -22,3 +22,13 @@ BridgeMonitor<> Monitor(Bridge);
 // Alias the 'Serial' object to the above 'Monitor' instance
 extern BridgeMonitor<> Serial [[gnu::alias("Monitor")]];
 #endif
+
+static void safeUpdate(){
+    BridgeClassUpdater::safeUpdate(&Bridge);
+}
+
+// leave as is
+void __attribute__((weak)) __loopHook(void){
+    k_yield();
+    safeUpdate();
+}
